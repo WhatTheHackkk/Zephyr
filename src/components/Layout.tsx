@@ -5,6 +5,8 @@ import ChannelChat from './Chat/ChannelChat';
 import CallRoom from './Chat/CallRoom';
 import { useAppContext } from '../context/AppContext';
 
+import { motion, AnimatePresence } from 'framer-motion';
+
 const Layout = () => {
   const { mobileView, activeChannel } = useAppContext();
 
@@ -14,9 +16,22 @@ const Layout = () => {
       <div className={`w-full h-full md:block ${mobileView === 'channels' ? 'block' : 'hidden'}`}>
         <LeftSidebar />
       </div>
-      <div className={`w-full h-full md:block border-l border-white/10 bg-black/10 ${(mobileView !== 'channels' && mobileView !== 'members') ? 'block' : 'hidden'}`}>
-        {activeChannel === 'home' ? <CenterFeed /> : activeChannel === 'calls' ? <CallRoom /> : <ChannelChat />}
+      
+      <div className={`w-full h-full md:block border-l border-white/10 bg-black/10 relative overflow-hidden ${(mobileView !== 'channels' && mobileView !== 'members') ? 'block' : 'hidden'}`}>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeChannel}
+            initial={{ opacity: 0, y: 10, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.98 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+            className="w-full h-full absolute inset-0"
+          >
+            {activeChannel === 'home' ? <CenterFeed /> : activeChannel === 'calls' ? <CallRoom /> : <ChannelChat />}
+          </motion.div>
+        </AnimatePresence>
       </div>
+
       <div className={`w-full h-full lg:block ${mobileView === 'members' ? 'block' : 'hidden'}`}>
         <RightSidebar />
       </div>

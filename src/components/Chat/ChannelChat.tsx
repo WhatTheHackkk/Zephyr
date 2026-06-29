@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { db } from '../../lib/firebase';
-import { collection, addDoc, query, onSnapshot, where, serverTimestamp, doc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, query, onSnapshot, where, serverTimestamp, doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import type { ChatMessage } from '../../types';
-import { Send, Hash, MoreVertical, ChevronLeft, Plus, FileText, Mic, Camera, X, Smile, Users } from 'lucide-react';
+import { Send, Hash, MoreVertical, ChevronLeft, Plus, FileText, Mic, Camera, X, Smile, Users, MoreHorizontal, Edit2, Trash2 } from 'lucide-react';
 import UserAvatar from '../UserAvatar';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 
@@ -14,6 +14,12 @@ const ChannelChat = () => {
   const [typingNames, setTypingNames] = useState<string[]>([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editMessageContent, setEditMessageContent] = useState('');
+  const [showOptionsFor, setShowOptionsFor] = useState<string | null>(null);
+  const [showEmojiPickerForMessage, setShowEmojiPickerForMessage] = useState<string | null>(null);
+  const messageEmojiPickerRef = useRef<HTMLDivElement>(null);
+  const availableReactions = ['👍', '❤️', '😂', '😮', '😢', '😡'];
   
   const [attachment, setAttachment] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -97,10 +103,52 @@ const ChannelChat = () => {
       if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
         setShowEmojiPicker(false);
       }
+      if (messageEmojiPickerRef.current && !messageEmojiPickerRef.current.contains(event.target as Node)) {
+        setShowEmojiPickerForMessage(null);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const handleDeleteMessage = async (msgId: string) => {
+    if (!window.confirm("Are you sure you want to delete this message?")) return;
+    try {
+      await deleteDoc(doc(db, 'messages', msgId));
+    } catch (err) {
+      console.error("Error deleting message:", err);
+    }
+  };
+
+  const handleEditMessage = async (msgId: string) => {
+    if (!editMessageContent.trim()) return;
+    try {
+      await updateDoc(doc(db, 'messages', msgId), { content: editMessageContent });
+      setEditingMessageId(null);
+    } catch (err) {
+      console.error("Error editing message:", err);
+    }
+  };
+
+  const handleReaction = async (msgId: string, emoji: string, currentReactions: Record<string, string[]> = {}) => {
+    if (!currentUser) return;
+    try {
+      const msgRef = doc(db, 'messages', msgId);
+      const newReactions = { ...currentReactions };
+      if (!newReactions[emoji]) newReactions[emoji] = [];
+      
+      const userIndex = newReactions[emoji].indexOf(currentUser.uid);
+      if (userIndex > -1) {
+        newReactions[emoji].splice(userIndex, 1);
+        if (newReactions[emoji].length === 0) delete newReactions[emoji];
+      } else {
+        newReactions[emoji].push(currentUser.uid);
+      }
+      await updateDoc(msgRef, { reactions: newReactions });
+    } catch (err) {
+      console.error("Error updating reaction:", err);
+    }
+  };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -306,19 +354,96 @@ const ChannelChat = () => {
           const device = author?.device;
 
           return (
-            <div key={msg.id} className="flex gap-4 hover:bg-white/5 p-2 -mx-2 rounded-lg transition-colors group animate-in slide-in-from-bottom-2">
+            <div key={msg.id} className="flex gap-4 hover:bg-white/5 p-2 -mx-2 rounded-lg transition-colors group animate-in slide-in-from-bottom-2 relative" onMouseLeave={() => setShowOptionsFor(null)}>
+              
+              <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
+                <div className="relative" ref={showEmojiPickerForMessage === msg.id ? messageEmojiPickerRef : null}>
+                  <button onClick={() => setShowEmojiPickerForMessage(showEmojiPickerForMessage === msg.id ? null : msg.id)} className="text-white/40 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10">
+                    <Smile size={18} />
+                  </button>
+                  {showEmojiPickerForMessage === msg.id && (
+                    <div className="absolute right-0 top-full mt-1 z-50">
+                      <EmojiPicker 
+                        theme={Theme.DARK} 
+                        onEmojiClick={(emojiData) => {
+                          handleReaction(msg.id, emojiData.emoji, msg.reactions);
+                          setShowEmojiPickerForMessage(null);
+                        }} 
+                      />
+                    </div>
+                  )}
+                </div>
+                
+                {msg.authorId === currentUser?.uid && (
+                  <div className="relative">
+                    <button onClick={() => setShowOptionsFor(showOptionsFor === msg.id ? null : msg.id)} className="text-white/40 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10">
+                      <MoreHorizontal size={18} />
+                    </button>
+                    {showOptionsFor === msg.id && (
+                      <div className="absolute right-0 top-full mt-1 bg-[#121218] border border-white/10 rounded-xl shadow-xl overflow-hidden z-20 w-32">
+                        <button 
+                          onClick={() => { setEditingMessageId(msg.id); setEditMessageContent(msg.content); setShowOptionsFor(null); }}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+                        >
+                          <Edit2 size={14} /> Edit
+                        </button>
+                        <button 
+                          onClick={() => { handleDeleteMessage(msg.id); setShowOptionsFor(null); }}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
+                        >
+                          <Trash2 size={14} /> Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <UserAvatar src={avatar} status={status as any} device={device as any} size="md" className="mt-0.5" />
-              <div className="flex flex-col">
+              <div className="flex flex-col flex-1 min-w-0 pr-16">
                 <div className="flex items-baseline gap-2">
-                  <span className="font-bold text-[14.5px] text-white/90 hover:underline cursor-pointer">{displayName}</span>
-                  <span className="text-[11px] text-white/40">
+                  <span className="font-bold text-[14.5px] text-white/90 hover:underline cursor-pointer truncate">{displayName}</span>
+                  <span className="text-[11px] text-white/40 shrink-0">
                     {msg.timestamp?.toDate ? new Date(msg.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
                   </span>
                 </div>
-              <div className="text-white/85 text-[15px] leading-relaxed break-words mt-0.5 whitespace-pre-wrap">
-                {msg.content && <div>{msg.content}</div>}
-                {msg.attachmentUrl && renderAttachment(msg.attachmentUrl)}
-              </div>
+              
+              {editingMessageId === msg.id ? (
+                <div className="mt-1">
+                  <textarea 
+                    value={editMessageContent}
+                    onChange={(e) => setEditMessageContent(e.target.value)}
+                    className="w-full bg-black/20 border border-white/10 rounded-lg p-2 text-white focus:ring-1 focus:ring-cyan-500 resize-none outline-none text-sm"
+                    rows={2}
+                  />
+                  <div className="flex justify-end gap-2 mt-1">
+                    <button onClick={() => setEditingMessageId(null)} className="px-3 py-1 rounded text-xs hover:bg-white/5 transition-colors text-white/70">Cancel</button>
+                    <button onClick={() => handleEditMessage(msg.id)} className="px-3 py-1 rounded text-xs bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/40 transition-colors">Save</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-white/85 text-[15px] leading-relaxed break-words mt-0.5 whitespace-pre-wrap">
+                  {msg.content && <div>{msg.content}</div>}
+                  {msg.attachmentUrl && renderAttachment(msg.attachmentUrl)}
+                </div>
+              )}
+              
+              {msg.reactions && Object.keys(msg.reactions).length > 0 && (
+                <div className="flex gap-1.5 flex-wrap mt-1">
+                  {Object.entries(msg.reactions).map(([emoji, users]) => (
+                    <button 
+                      key={emoji}
+                      onClick={() => handleReaction(msg.id, emoji, msg.reactions)}
+                      className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs transition-colors ${
+                        users.includes(currentUser?.uid || '') ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : 'bg-white/5 text-white/60 hover:bg-white/10 border border-transparent'
+                      }`}
+                    >
+                      <span>{emoji}</span>
+                      <span className="font-medium text-[10px]">{users.length}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )})}

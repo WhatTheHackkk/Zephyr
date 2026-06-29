@@ -20,11 +20,16 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [activeChannel, setActiveChannel] = useState('home');
+  const [activeChannel, setActiveChannelState] = useState(() => localStorage.getItem('zephyr_activeChannel') || 'home');
   const [mobileView, setMobileView] = useState<'channels' | 'feed' | 'chat' | 'members'>('feed');
   const [posts, setPosts] = useState<Post[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
+
+  const setActiveChannel = (channel: string) => {
+    setActiveChannelState(channel);
+    localStorage.setItem('zephyr_activeChannel', channel);
+  };
 
   return (
     <AppContext.Provider value={{

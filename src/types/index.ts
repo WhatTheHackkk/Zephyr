@@ -39,6 +39,7 @@ export interface ChatMessage {
   channelId: string;
   content: string;
   attachmentUrl?: string;
+  reactions?: Record<string, string[]>;
   timestamp: any;
 }
 
