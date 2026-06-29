@@ -7,6 +7,7 @@ import { Send, Heart, MessageSquare, Image as ImageIcon, Menu, MessageCircle, Us
 import FriendsList from '../Friends/FriendsList';
 import { uploadMedia } from '../../utils/uploadMedia';
 import UserAvatar from '../UserAvatar';
+import EmojiPicker, { Theme } from 'emoji-picker-react';
 
 const CenterFeed = () => {
   const { currentUser, setMobileView, allUsers } = useAppContext();
@@ -20,7 +21,11 @@ const CenterFeed = () => {
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
   const [showOptionsFor, setShowOptionsFor] = useState<string | null>(null);
-  const availableReactions = ['👍', '❤️', '😂', '😮', '😢', '😡'];
+  const [showEmojiPickerForPost, setShowEmojiPickerForPost] = useState<string | null>(null);
+  const [showInputEmojiPicker, setShowInputEmojiPicker] = useState(false);
+  
+  const postEmojiPickerRef = useRef<HTMLDivElement>(null);
+  const inputEmojiPickerRef = useRef<HTMLDivElement>(null);
 
   const handleDeletePost = async (postId: string) => {
     if (!window.confirm("Are you sure you want to delete this post?")) return;
@@ -71,6 +76,20 @@ const CenterFeed = () => {
       setPosts(postsData);
     });
     return () => unsubscribe();
+  }, []);
+
+  // Click outside listeners for Emoji Pickers
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (inputEmojiPickerRef.current && !inputEmojiPickerRef.current.contains(event.target as Node)) {
+        setShowInputEmojiPicker(false);
+      }
+      if (postEmojiPickerRef.current && !postEmojiPickerRef.current.contains(event.target as Node)) {
+        setShowEmojiPickerForPost(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const handlePaste = (e: React.ClipboardEvent) => {
@@ -139,9 +158,14 @@ const CenterFeed = () => {
             </h2>
           </div>
         </div>
-        <button onClick={() => setMobileView('chat')} className="md:hidden text-white/70 hover:text-white transition-colors">
-          <MessageCircle size={24} />
-        </button>
+        <div className="flex items-center gap-4">
+          <button onClick={() => setMobileView('members')} className="lg:hidden text-white/70 hover:text-white transition-colors">
+            <Users size={24} />
+          </button>
+          <button onClick={() => setMobileView('chat')} className="md:hidden text-white/70 hover:text-white transition-colors">
+            <MessageCircle size={24} />
+          </button>
+        </div>
       </div>
 
       {homeTab === 'friends' ? (
@@ -193,13 +217,35 @@ const CenterFeed = () => {
                 className="hidden" 
                 onChange={(e) => e.target.files?.[0] && setAttachment(e.target.files[0])}
               />
-              <button 
-                type="button" 
-                onClick={() => fileInputRef.current?.click()}
-                className="text-white/40 hover:text-cyan-400 transition-colors"
-              >
-                <ImageIcon size={20} />
-              </button>
+              <div className="flex gap-2">
+                <button 
+                  type="button" 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-white/40 hover:text-cyan-400 transition-colors p-2 hover:bg-white/5 rounded-lg"
+                >
+                  <ImageIcon size={20} />
+                </button>
+                <div className="relative" ref={inputEmojiPickerRef}>
+                  <button 
+                    type="button" 
+                    onClick={() => setShowInputEmojiPicker(!showInputEmojiPicker)}
+                    className="text-white/40 hover:text-cyan-400 transition-colors p-2 hover:bg-white/5 rounded-lg"
+                  >
+                    <Smile size={20} />
+                  </button>
+                  {showInputEmojiPicker && (
+                    <div className="absolute top-full left-0 mt-2 z-50">
+                      <EmojiPicker 
+                        theme={Theme.DARK} 
+                        onEmojiClick={(emojiData) => {
+                          setNewPostContent(prev => prev + emojiData.emoji);
+                          setShowInputEmojiPicker(false);
+                        }} 
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
               <button type="submit" disabled={(!newPostContent.trim() && !attachment) || isUploading} className="liquid-btn liquid-btn-primary px-6 py-2 text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                 {isUploading ? 'Posting...' : <>Post <Send size={14} /></>}
               </button>
@@ -302,21 +348,24 @@ const CenterFeed = () => {
                         <span className="font-medium text-xs">{users.length}</span>
                       </button>
                     ))}
-                    <div className="relative group/react">
-                      <button className="flex items-center gap-2 text-white/40 hover:text-cyan-400 transition-colors p-1.5 rounded-lg hover:bg-white/5">
+                    <div className="relative" ref={showEmojiPickerForPost === post.id ? postEmojiPickerRef : null}>
+                      <button 
+                        onClick={() => setShowEmojiPickerForPost(showEmojiPickerForPost === post.id ? null : post.id)}
+                        className="flex items-center gap-2 text-white/40 hover:text-cyan-400 transition-colors p-1.5 rounded-lg hover:bg-white/5"
+                      >
                         <Smile size={18} />
                       </button>
-                      <div className="absolute bottom-full left-0 mb-2 bg-[#121218] border border-white/10 rounded-xl shadow-xl p-2 hidden group-hover/react:flex gap-1 z-20">
-                        {availableReactions.map(emoji => (
-                          <button 
-                            key={emoji} 
-                            onClick={() => handleReaction(post.id, emoji, post.reactions)}
-                            className="w-8 h-8 flex items-center justify-center text-lg hover:bg-white/10 rounded-lg transition-colors"
-                          >
-                            {emoji}
-                          </button>
-                        ))}
-                      </div>
+                      {showEmojiPickerForPost === post.id && (
+                        <div className="absolute bottom-full left-0 mb-2 z-50">
+                          <EmojiPicker 
+                            theme={Theme.DARK} 
+                            onEmojiClick={(emojiData) => {
+                              handleReaction(post.id, emojiData.emoji, post.reactions);
+                              setShowEmojiPickerForPost(null);
+                            }} 
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                   

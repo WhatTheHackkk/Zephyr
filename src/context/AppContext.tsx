@@ -6,8 +6,8 @@ interface AppContextType {
   setCurrentUser: (user: User | null) => void;
   activeChannel: string;
   setActiveChannel: (channel: string) => void;
-  mobileView: 'channels' | 'feed' | 'chat';
-  setMobileView: (view: 'channels' | 'feed' | 'chat') => void;
+  mobileView: 'channels' | 'feed' | 'chat' | 'members';
+  setMobileView: (view: 'channels' | 'feed' | 'chat' | 'members') => void;
   posts: Post[];
   setPosts: React.Dispatch<React.SetStateAction<Post[]>>;
   messages: ChatMessage[];
@@ -21,7 +21,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeChannel, setActiveChannel] = useState('home');
-  const [mobileView, setMobileView] = useState<'channels' | 'feed' | 'chat'>('feed');
+  const [mobileView, setMobileView] = useState<'channels' | 'feed' | 'chat' | 'members'>('feed');
   const [posts, setPosts] = useState<Post[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);

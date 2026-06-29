@@ -4,8 +4,12 @@ import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import type { User } from '../../types';
 import UserAvatar from '../UserAvatar';
 
+import { useAppContext } from '../../context/AppContext';
+import { ChevronLeft } from 'lucide-react';
+
 const RightSidebar = () => {
   const [users, setUsers] = useState<User[]>([]);
+  const { setMobileView, activeChannel } = useAppContext();
 
   useEffect(() => {
     const q = query(collection(db, 'users'), orderBy('username', 'asc'));
@@ -35,8 +39,11 @@ const RightSidebar = () => {
   );
 
   return (
-    <div className="w-60 h-full bg-black/10 border-l border-white/10 hidden lg:flex flex-col">
-      <div className="p-4 border-b border-white/10 shrink-0">
+    <div className="w-full lg:w-60 h-full bg-[#121218] border-l border-white/10 flex flex-col">
+      <div className="p-4 border-b border-white/10 shrink-0 flex items-center gap-2">
+        <button onClick={() => setMobileView(activeChannel === 'home' ? 'feed' : 'chat')} className="lg:hidden text-white/70 hover:text-white transition-colors">
+          <ChevronLeft size={24} />
+        </button>
         <h3 className="font-bold text-white/80">Members</h3>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-6 hide-scrollbar">

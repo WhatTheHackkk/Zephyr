@@ -1,16 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { db } from '../../lib/firebase';
-import { collection, addDoc, query, orderBy, onSnapshot, where, serverTimestamp, doc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, query, onSnapshot, where, serverTimestamp, doc, setDoc } from 'firebase/firestore';
 import type { ChatMessage } from '../../types';
-import { Send, Hash, MoreVertical, ChevronLeft, Plus, FileText, Mic, Camera, X } from 'lucide-react';
+import { Send, Hash, MoreVertical, ChevronLeft, Plus, FileText, Mic, Camera, X, Smile, Users } from 'lucide-react';
 import UserAvatar from '../UserAvatar';
+import EmojiPicker, { Theme } from 'emoji-picker-react';
 
 const ChannelChat = () => {
   const { currentUser, activeChannel, setMobileView, allUsers } = useAppContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [typingNames, setTypingNames] = useState<string[]>([]);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
   
   const [attachment, setAttachment] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -30,8 +33,7 @@ const ChannelChat = () => {
     
     const q = query(
       collection(db, 'messages'), 
-      where('channelId', '==', activeChannel),
-      orderBy('timestamp', 'asc')
+      where('channelId', '==', activeChannel)
     );
     
     const unsubscribeMessages = onSnapshot(q, (snapshot) => {
@@ -39,6 +41,13 @@ const ChannelChat = () => {
         id: doc.id,
         ...doc.data()
       })) as ChatMessage[];
+      
+      msgs.sort((a, b) => {
+        const timeA = a.timestamp?.toMillis ? a.timestamp.toMillis() : Date.now();
+        const timeB = b.timestamp?.toMillis ? b.timestamp.toMillis() : Date.now();
+        return timeA - timeB;
+      });
+      
       setMessages(msgs);
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     });
@@ -81,6 +90,17 @@ const ChannelChat = () => {
       clearInterval(checker);
     };
   }, [activeChannel, currentUser?.uid]);
+
+  // Click outside listener for Emoji Picker
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -266,9 +286,14 @@ const ChannelChat = () => {
           <Hash size={20} className="text-cyan-400" />
           <h3 className="font-bold text-lg capitalize truncate max-w-[120px] md:max-w-none">{activeChannel}</h3>
         </div>
-        <button className="text-white/40 hover:text-white transition-colors">
-          <MoreVertical size={18} />
-        </button>
+        <div className="flex items-center gap-4">
+          <button onClick={() => setMobileView('members')} className="lg:hidden text-white/40 hover:text-white transition-colors">
+            <Users size={20} />
+          </button>
+          <button className="text-white/40 hover:text-white transition-colors">
+            <MoreVertical size={18} />
+          </button>
+        </div>
       </div>
 
       {/* Chat Messages */}
@@ -347,11 +372,32 @@ const ChannelChat = () => {
               onChange={handleTyping}
               onPaste={handlePaste}
               placeholder={`Message #${activeChannel}`}
-              className="liquid-input w-full pr-[130px] text-sm h-10"
+              className="liquid-input w-full pr-[160px] text-sm h-10"
               disabled={isUploading || isRecordingAudio}
             />
             
             <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              <div className="relative" ref={emojiPickerRef}>
+                <button 
+                  type="button" 
+                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                  className="w-8 h-8 rounded-full bg-white/5 text-white/70 flex items-center justify-center hover:bg-white/10 hover:text-white transition-colors"
+                >
+                  <Smile size={16} />
+                </button>
+                {showEmojiPicker && (
+                  <div className="absolute bottom-full right-0 mb-2 z-50">
+                    <EmojiPicker 
+                      theme={Theme.DARK} 
+                      onEmojiClick={(emojiData) => {
+                        setNewMessage(prev => prev + emojiData.emoji);
+                        setShowEmojiPicker(false);
+                      }} 
+                    />
+                  </div>
+                )}
+              </div>
+
               {isRecordingAudio ? (
                 <button
                   type="button"

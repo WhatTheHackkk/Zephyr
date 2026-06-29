@@ -14,10 +14,10 @@ const Layout = () => {
       <div className={`w-full h-full md:block ${mobileView === 'channels' ? 'block' : 'hidden'}`}>
         <LeftSidebar />
       </div>
-      <div className={`w-full h-full md:block border-l border-white/10 bg-black/10 ${mobileView !== 'channels' ? 'block' : 'hidden'}`}>
+      <div className={`w-full h-full md:block border-l border-white/10 bg-black/10 ${(mobileView !== 'channels' && mobileView !== 'members') ? 'block' : 'hidden'}`}>
         {activeChannel === 'home' ? <CenterFeed /> : activeChannel === 'calls' ? <CallRoom /> : <ChannelChat />}
       </div>
-      <div className="hidden lg:block w-full h-full">
+      <div className={`w-full h-full lg:block ${mobileView === 'members' ? 'block' : 'hidden'}`}>
         <RightSidebar />
       </div>
     </div>
