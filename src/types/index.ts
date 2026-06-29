@@ -19,7 +19,7 @@ export interface Post {
   image?: string;
   likes: number;
   comments: Comment[];
-  timestamp: number;
+  timestamp: any;
 }
 
 export interface Comment {
@@ -37,7 +37,7 @@ export interface ChatMessage {
   channelId: string;
   content: string;
   attachmentUrl?: string;
-  timestamp: number;
+  timestamp: any;
 }
 
 export interface AppState {
