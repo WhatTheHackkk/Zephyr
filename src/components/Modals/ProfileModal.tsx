@@ -3,8 +3,9 @@ import { useAppContext } from '../../context/AppContext';
 import { db, auth } from '../../lib/firebase';
 import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
-import { X, UploadCloud } from 'lucide-react';
+import { UploadCloud, X, Edit2, Key, Check, Info } from 'lucide-react';
 import ImageCropperModal from './ImageCropperModal';
+import { uploadMedia } from '../../utils/uploadMedia';
 
 interface ProfileModalProps {
   onClose: () => void;
@@ -35,23 +36,13 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
   const uploadToCloudinary = async (file: File, type: 'avatar' | 'banner') => {
     try {
       setIsUploading(type);
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('upload_preset', 'wbqanc91');
+      const url = await uploadMedia(file);
       
-      const res = await fetch('https://api.cloudinary.com/v1_1/dixvtzmjd/auto/upload', {
-        method: 'POST',
-        body: formData
-      });
-      const data = await res.json();
-      
-      if (!res.ok) throw new Error(data.error?.message || 'Upload failed');
-      
-      if (type === 'avatar') setAvatar(data.secure_url);
-      else setBanner(data.secure_url);
-    } catch (err) {
+      if (type === 'avatar') setAvatar(url);
+      else setBanner(url);
+    } catch (err: any) {
       console.error("Upload error", err);
-      setError(`Failed to upload ${type}. Try a different file.`);
+      setError(`Failed to upload ${type}: ${err.message}`);
     } finally {
       setIsUploading(null);
     }

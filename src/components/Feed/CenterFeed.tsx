@@ -1,16 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { db } from '../../lib/firebase';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import type { Post } from '../../types';
-import { Send, Heart, MessageSquare, Image as ImageIcon, Menu, MessageCircle, Users, Activity } from 'lucide-react';
+import { Send, Heart, MessageSquare, Image as ImageIcon, Menu, MessageCircle, Users, Activity, X } from 'lucide-react';
 import FriendsList from '../Friends/FriendsList';
+import { uploadMedia } from '../../utils/uploadMedia';
 
 const CenterFeed = () => {
   const { currentUser, setMobileView } = useAppContext();
   const [posts, setPosts] = useState<Post[]>([]);
   const [newPostContent, setNewPostContent] = useState('');
   const [homeTab, setHomeTab] = useState<'timeline' | 'friends'>('timeline');
+  const [attachment, setAttachment] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const q = query(collection(db, 'posts'), orderBy('timestamp', 'desc'));
@@ -24,23 +28,49 @@ const CenterFeed = () => {
     return () => unsubscribe();
   }, []);
 
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (const item of items) {
+      if (item.kind === 'file') {
+        const file = item.getAsFile();
+        if (file) {
+          setAttachment(file);
+          break;
+        }
+      }
+    }
+  };
+
   const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPostContent.trim() || !currentUser) return;
+    if ((!newPostContent.trim() && !attachment) || !currentUser || isUploading) return;
 
+    setIsUploading(true);
     try {
+      let attachmentUrl = '';
+      if (attachment) {
+        attachmentUrl = await uploadMedia(attachment);
+      }
+
       await addDoc(collection(db, 'posts'), {
         authorId: currentUser.uid,
         authorName: currentUser.username,
         authorAvatar: currentUser.avatar,
         content: newPostContent,
+        image: attachmentUrl || null,
         likes: 0,
         comments: [],
         timestamp: serverTimestamp()
       });
       setNewPostContent('');
+      setAttachment(null);
     } catch (err) {
       console.error("Error adding post: ", err);
+      alert("Failed to post: " + (err as Error).message);
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -78,20 +108,55 @@ const CenterFeed = () => {
           {/* Create Post */}
       <form onSubmit={handleCreatePost} className="liquid-glass p-4 gravity-target">
         <div className="flex gap-4">
-          <img src={currentUser?.avatar} alt="Avatar" className="w-10 h-10 rounded-full border border-white/20" />
-          <div className="flex-1">
+          <img src={currentUser?.avatar} alt="Avatar" className="w-10 h-10 rounded-full border border-white/20 shrink-0" />
+          <div className="flex-1 overflow-hidden">
             <textarea 
               value={newPostContent}
               onChange={(e) => setNewPostContent(e.target.value)}
-              placeholder="What's on your mind?"
-              className="w-full bg-transparent border-none text-white focus:ring-0 resize-none h-12 text-lg outline-none placeholder:text-white/30"
+              onPaste={handlePaste}
+              placeholder="What's on your mind? (Paste images/files here)"
+              className="w-full bg-transparent border-none text-white focus:ring-0 resize-none min-h-[48px] text-lg outline-none placeholder:text-white/30"
+              rows={Math.max(2, newPostContent.split('\n').length)}
             />
+            
+            {attachment && (
+              <div className="mt-2 relative inline-block">
+                {attachment.type.startsWith('image/') ? (
+                  <img src={URL.createObjectURL(attachment)} alt="Attachment preview" className="max-h-48 rounded-lg border border-white/10" />
+                ) : attachment.type.startsWith('video/') ? (
+                  <video src={URL.createObjectURL(attachment)} controls className="max-h-48 rounded-lg border border-white/10" />
+                ) : (
+                  <div className="bg-white/5 p-3 rounded-lg border border-white/10 flex items-center gap-2">
+                    <ImageIcon size={20} className="text-cyan-400" />
+                    <span className="text-sm truncate max-w-[200px]">{attachment.name}</span>
+                  </div>
+                )}
+                <button 
+                  type="button" 
+                  onClick={() => setAttachment(null)} 
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg hover:bg-red-600"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+
             <div className="flex justify-between items-center mt-4 pt-4 border-t border-white/10">
-              <button type="button" className="text-white/40 hover:text-cyan-400 transition-colors">
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                onChange={(e) => e.target.files?.[0] && setAttachment(e.target.files[0])}
+              />
+              <button 
+                type="button" 
+                onClick={() => fileInputRef.current?.click()}
+                className="text-white/40 hover:text-cyan-400 transition-colors"
+              >
                 <ImageIcon size={20} />
               </button>
-              <button type="submit" disabled={!newPostContent.trim()} className="liquid-btn liquid-btn-primary px-6 py-2 text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                Post <Send size={14} />
+              <button type="submit" disabled={(!newPostContent.trim() && !attachment) || isUploading} className="liquid-btn liquid-btn-primary px-6 py-2 text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                {isUploading ? 'Posting...' : <>Post <Send size={14} /></>}
               </button>
             </div>
           </div>
@@ -111,7 +176,18 @@ const CenterFeed = () => {
                 </div>
                 <p className="text-white/90 leading-relaxed text-[15px]">{post.content}</p>
                 {post.image && (
-                  <img src={post.image} alt="Post content" className="mt-4 rounded-xl max-h-[300px] w-full object-cover border border-white/10" />
+                  <div className="mt-4 rounded-xl overflow-hidden border border-white/10">
+                    {post.image.match(/\.(mp4|webm)$/i) || post.image.includes('/video/upload/') ? (
+                      <video src={post.image} controls className="max-h-[400px] w-full bg-black/20" />
+                    ) : post.image.match(/\.(pdf|doc|docx)$/i) || post.image.includes('/raw/upload/') ? (
+                      <a href={post.image} target="_blank" rel="noreferrer" className="flex items-center gap-3 p-4 bg-white/5 hover:bg-white/10 transition-colors">
+                        <ImageIcon size={24} className="text-cyan-400" />
+                        <span className="text-sm">Download Attachment</span>
+                      </a>
+                    ) : (
+                      <img src={post.image} alt="Post content" className="max-h-[400px] w-full object-cover" />
+                    )}
+                  </div>
                 )}
                 <div className="flex gap-6 mt-6">
                   <button className="flex items-center gap-2 text-white/40 hover:text-pink-400 transition-colors group">
