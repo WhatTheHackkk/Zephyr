@@ -2,7 +2,7 @@
 import { useAppContext } from '../../context/AppContext';
 import { auth } from '../../lib/firebase';
 import { signOut } from 'firebase/auth';
-import { Hash, Radio, Mic, LogOut, Settings } from 'lucide-react';
+import { Radio, Mic, LogOut, Settings } from 'lucide-react';
 import { useState } from 'react';
 import ProfileModal from '../Modals/ProfileModal';
 
@@ -63,9 +63,6 @@ const LeftSidebar = () => {
               </button>
             ))}
           </div>
-        </div>
-
-      </div>
 
       {/* Profile Widget */}
       <div className="p-4 border-t border-white/10 bg-black/40 flex items-center justify-between shrink-0">
@@ -89,6 +86,9 @@ const LeftSidebar = () => {
         <div className="flex items-center gap-1 shrink-0">
           <button onClick={() => setIsProfileModalOpen(true)} className="p-2 text-white/40 hover:text-white transition-colors rounded-lg hover:bg-white/5">
             <Settings size={18} />
+          </button>
+          <button onClick={handleLogout} className="p-2 text-white/40 hover:text-red-400 transition-colors rounded-lg hover:bg-white/5">
+            <LogOut size={18} />
           </button>
         </div>
       </div>

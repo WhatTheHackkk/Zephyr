@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { db } from '../../lib/firebase';
 import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import type { User } from '../../types';
@@ -19,7 +19,7 @@ const RightSidebar = () => {
   }, []);
 
   const onlineUsers = users.filter(u => u.status === 'online' || u.status === 'idle' || u.status === 'dnd');
-  const offlineUsers = users.filter(u => !u.status || u.status === 'offline' || (!['online', 'idle', 'dnd'].includes(u.status)));
+  const offlineUsers = users.filter(u => !u.status || (!['online', 'idle', 'dnd'].includes(u.status)));
 
   const renderUser = (user: User) => (
     <div key={user.uid} className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-lg cursor-pointer transition-colors group">

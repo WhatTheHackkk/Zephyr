@@ -3,7 +3,7 @@ import { useAppContext } from '../../context/AppContext';
 import { db, auth } from '../../lib/firebase';
 import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
-import { UploadCloud, X, Edit2, Key, Check, Info } from 'lucide-react';
+import { UploadCloud, X } from 'lucide-react';
 import ImageCropperModal from './ImageCropperModal';
 import { uploadMedia } from '../../utils/uploadMedia';
 
