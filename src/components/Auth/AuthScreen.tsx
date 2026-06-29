@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { auth, db } from '../../lib/firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { collection, query, where, getDocs, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { LogIn, UserPlus } from 'lucide-react';
 
@@ -10,11 +10,13 @@ const AuthScreen = () => {
   const [username, setUsername] = useState(''); // Only for signup
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setMessage('');
     setLoading(true);
 
     try {
@@ -76,6 +78,38 @@ const AuthScreen = () => {
     }
   };
 
+  const handleResetPassword = async () => {
+    if (!identifier) {
+      setError('Please enter your email or username first.');
+      return;
+    }
+    setError('');
+    setMessage('');
+    setLoading(true);
+
+    try {
+      let resetEmail = identifier;
+      
+      if (!identifier.includes('@')) {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('username', '==', identifier.toLowerCase()));
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
+          throw new Error('Username not found.');
+        }
+        resetEmail = querySnapshot.docs[0].data().email;
+      }
+
+      await sendPasswordResetEmail(auth, resetEmail);
+      setMessage('Password reset email sent! Check your inbox.');
+    } catch (err: any) {
+      setError(err.message || 'Failed to send password reset email.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="liquid-glass p-8 w-full max-w-md mx-4 animate-in fade-in zoom-in duration-500 relative overflow-hidden">
       <div className="absolute top-0 right-0 -mr-16 -mt-16 w-32 h-32 bg-cyan-500 rounded-full mix-blend-screen filter blur-[40px] opacity-20"></div>
@@ -117,8 +151,22 @@ const AuthScreen = () => {
           className="liquid-input w-full"
           required
         />
+        
+        {isLogin && (
+          <div className="flex justify-end">
+            <button 
+              type="button" 
+              onClick={handleResetPassword}
+              disabled={loading}
+              className="text-sm text-cyan-400 hover:text-cyan-300 transition-colors disabled:opacity-50"
+            >
+              Forgot Password?
+            </button>
+          </div>
+        )}
 
         {error && <p className="text-red-400 text-sm text-center bg-red-400/10 p-2 rounded">{error}</p>}
+        {message && <p className="text-green-400 text-sm text-center bg-green-400/10 p-2 rounded">{message}</p>}
 
         <button disabled={loading} type="submit" className="liquid-btn liquid-btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50">
           {isLogin ? <LogIn size={18} /> : <UserPlus size={18} />}
@@ -132,6 +180,7 @@ const AuthScreen = () => {
           onClick={() => {
             setIsLogin(!isLogin);
             setError('');
+            setMessage('');
             setIdentifier('');
             setPassword('');
             setUsername('');
