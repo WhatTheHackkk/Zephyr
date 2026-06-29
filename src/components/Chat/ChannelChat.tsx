@@ -19,7 +19,6 @@ const ChannelChat = () => {
   const [showOptionsFor, setShowOptionsFor] = useState<string | null>(null);
   const [showEmojiPickerForMessage, setShowEmojiPickerForMessage] = useState<string | null>(null);
   const messageEmojiPickerRef = useRef<HTMLDivElement>(null);
-  const availableReactions = ['👍', '❤️', '😂', '😮', '😢', '😡'];
   
   const [attachment, setAttachment] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
