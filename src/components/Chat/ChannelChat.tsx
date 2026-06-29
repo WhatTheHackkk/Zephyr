@@ -4,9 +4,10 @@ import { db } from '../../lib/firebase';
 import { collection, addDoc, query, orderBy, onSnapshot, where, serverTimestamp, doc, setDoc } from 'firebase/firestore';
 import type { ChatMessage } from '../../types';
 import { Send, Hash, MoreVertical, ChevronLeft, Plus, FileText, Mic, Camera, X } from 'lucide-react';
+import UserAvatar from '../UserAvatar';
 
 const ChannelChat = () => {
-  const { currentUser, activeChannel, setMobileView } = useAppContext();
+  const { currentUser, activeChannel, setMobileView, allUsers } = useAppContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [typingNames, setTypingNames] = useState<string[]>([]);
@@ -272,23 +273,30 @@ const ChannelChat = () => {
 
       {/* Chat Messages */}
       <div className="flex-1 overflow-y-auto hide-scrollbar p-5 flex flex-col gap-4">
-        {messages.map(msg => (
-          <div key={msg.id} className="flex gap-4 hover:bg-white/5 p-2 -mx-2 rounded-lg transition-colors group animate-in slide-in-from-bottom-2">
-            <img src={msg.authorAvatar || '/default-avatar.png'} alt="Avatar" className="w-10 h-10 rounded-full border border-white/10 mt-0.5 object-cover shrink-0" />
-            <div className="flex flex-col">
-              <div className="flex items-baseline gap-2">
-                <span className="font-bold text-[14.5px] text-white/90 hover:underline cursor-pointer">{msg.authorName}</span>
-                <span className="text-[11px] text-white/40">
-                  {msg.timestamp?.toDate ? new Date(msg.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
-                </span>
-              </div>
+        {messages.map(msg => {
+          const author = allUsers.find(u => u.uid === msg.authorId);
+          const displayName = author?.displayName || msg.authorName;
+          const avatar = author?.avatar || msg.authorAvatar;
+          const status = author?.status || 'offline';
+          const device = author?.device;
+
+          return (
+            <div key={msg.id} className="flex gap-4 hover:bg-white/5 p-2 -mx-2 rounded-lg transition-colors group animate-in slide-in-from-bottom-2">
+              <UserAvatar src={avatar} status={status as any} device={device as any} size="md" className="mt-0.5" />
+              <div className="flex flex-col">
+                <div className="flex items-baseline gap-2">
+                  <span className="font-bold text-[14.5px] text-white/90 hover:underline cursor-pointer">{displayName}</span>
+                  <span className="text-[11px] text-white/40">
+                    {msg.timestamp?.toDate ? new Date(msg.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
+                  </span>
+                </div>
               <div className="text-white/85 text-[15px] leading-relaxed break-words mt-0.5 whitespace-pre-wrap">
                 {msg.content && <div>{msg.content}</div>}
                 {msg.attachmentUrl && renderAttachment(msg.attachmentUrl)}
               </div>
             </div>
           </div>
-        ))}
+        )})}
         <div ref={chatEndRef} />
       </div>
 

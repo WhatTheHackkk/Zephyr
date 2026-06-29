@@ -12,6 +12,8 @@ interface AppContextType {
   setPosts: React.Dispatch<React.SetStateAction<Post[]>>;
   messages: ChatMessage[];
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
+  allUsers: User[];
+  setAllUsers: React.Dispatch<React.SetStateAction<User[]>>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -22,6 +24,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [mobileView, setMobileView] = useState<'channels' | 'feed' | 'chat'>('feed');
   const [posts, setPosts] = useState<Post[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
 
   return (
     <AppContext.Provider value={{
@@ -29,7 +32,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       activeChannel, setActiveChannel,
       mobileView, setMobileView,
       posts, setPosts,
-      messages, setMessages
+      messages, setMessages,
+      allUsers, setAllUsers
     }}>
       {children}
     </AppContext.Provider>

@@ -8,6 +8,7 @@ export interface User {
   displayName?: string;
   customStatus?: string;
   bio?: string;
+  device?: 'desktop' | 'mobile' | 'web';
 }
 
 export interface Post {

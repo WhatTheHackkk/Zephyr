@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { db } from '../../lib/firebase';
 import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import type { User } from '../../types';
+import UserAvatar from '../UserAvatar';
 
 const RightSidebar = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -23,18 +24,7 @@ const RightSidebar = () => {
 
   const renderUser = (user: User) => (
     <div key={user.uid} className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-lg cursor-pointer transition-colors group">
-      <div className="relative shrink-0">
-        <img 
-          src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`} 
-          alt={user.username} 
-          className={`w-8 h-8 rounded-full object-cover border-2 transition-colors ${
-            user.status === 'online' ? 'border-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' :
-            user.status === 'idle' ? 'border-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.6)]' :
-            user.status === 'dnd' ? 'border-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 
-            'border-gray-500 shadow-[0_0_8px_rgba(107,114,128,0.6)]'
-          }`} 
-        />
-      </div>
+      <UserAvatar src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`} status={user.status as any} device={user.device as any} size="sm" />
       <div className="flex-1 overflow-hidden">
         <div className="font-medium text-sm truncate text-white/90 group-hover:text-white">{user.displayName || user.username}</div>
         {user.customStatus && (

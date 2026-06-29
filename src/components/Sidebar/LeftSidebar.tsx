@@ -5,6 +5,7 @@ import { signOut } from 'firebase/auth';
 import { Radio, Mic, LogOut, Settings } from 'lucide-react';
 import { useState } from 'react';
 import ProfileModal from '../Modals/ProfileModal';
+import UserAvatar from '../UserAvatar';
 
 const channels = [
   { id: 'chill', name: 'Chill Chat', icon: null },
@@ -70,18 +71,7 @@ const LeftSidebar = () => {
           onClick={() => setIsProfileModalOpen(true)}
           className="flex items-center gap-3 cursor-pointer hover:bg-white/5 p-2 -ml-2 rounded-lg transition-colors flex-1 overflow-hidden"
         >
-          <div className="relative shrink-0">
-            <img 
-              src={currentUser?.avatar} 
-              alt="Avatar" 
-              className={`w-9 h-9 rounded-full object-cover border-2 transition-colors ${
-                currentUser?.status === 'online' ? 'border-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' :
-                currentUser?.status === 'idle' ? 'border-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.6)]' :
-                currentUser?.status === 'dnd' ? 'border-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 
-                'border-gray-500 shadow-[0_0_8px_rgba(107,114,128,0.6)]'
-              }`} 
-            />
-          </div>
+          <UserAvatar src={currentUser?.avatar} status={currentUser?.status} device={currentUser?.device} size="sm" />
           <div className="flex-1 overflow-hidden">
             <div className="font-bold text-[13px] truncate">{currentUser?.displayName}</div>
             <div className="text-[11px] text-white/40 truncate">@{currentUser?.username}</div>

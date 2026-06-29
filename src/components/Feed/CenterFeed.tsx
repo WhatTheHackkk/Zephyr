@@ -6,9 +6,10 @@ import type { Post } from '../../types';
 import { Send, Heart, MessageSquare, Image as ImageIcon, Menu, MessageCircle, Users, Activity, X, MoreHorizontal, Trash2, Edit2, Smile } from 'lucide-react';
 import FriendsList from '../Friends/FriendsList';
 import { uploadMedia } from '../../utils/uploadMedia';
+import UserAvatar from '../UserAvatar';
 
 const CenterFeed = () => {
-  const { currentUser, setMobileView } = useAppContext();
+  const { currentUser, setMobileView, allUsers } = useAppContext();
   const [posts, setPosts] = useState<Post[]>([]);
   const [newPostContent, setNewPostContent] = useState('');
   const [homeTab, setHomeTab] = useState<'timeline' | 'friends'>('timeline');
@@ -152,7 +153,7 @@ const CenterFeed = () => {
           {/* Create Post */}
       <form onSubmit={handleCreatePost} className="liquid-glass p-4 gravity-target">
         <div className="flex gap-4">
-          <img src={currentUser?.avatar} alt="Avatar" className="w-10 h-10 rounded-full border border-white/20 shrink-0" />
+          <UserAvatar src={currentUser?.avatar} status={currentUser?.status} device={currentUser?.device} size="md" />
           <div className="flex-1 overflow-hidden">
             <textarea 
               value={newPostContent}
@@ -237,14 +238,23 @@ const CenterFeed = () => {
             )}
 
             <div className="flex gap-4">
-              <img src={post.authorAvatar} alt={post.authorName} className="w-12 h-12 rounded-full border border-white/20 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="font-bold text-lg truncate">{post.authorName}</span>
-                  <span className="text-white/40 text-sm whitespace-nowrap">
-                    {post.timestamp?.toDate ? new Date(post.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'just now'}
-                  </span>
-                </div>
+              {(() => {
+                const author = allUsers.find(u => u.uid === post.authorId);
+                const displayName = author?.displayName || post.authorName;
+                const avatar = author?.avatar || post.authorAvatar;
+                const status = author?.status || 'offline';
+                const device = author?.device;
+                
+                return (
+                  <>
+                    <UserAvatar src={avatar} status={status as any} device={device as any} size="lg" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="font-bold text-lg truncate">{displayName}</span>
+                        <span className="text-white/40 text-sm whitespace-nowrap">
+                          {post.timestamp?.toDate ? new Date(post.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'just now'}
+                        </span>
+                      </div>
                 
                 {editingPostId === post.id ? (
                   <div className="mt-2">
@@ -322,9 +332,12 @@ const CenterFeed = () => {
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-        ))}
+            </>
+          );
+        })()}
+      </div>
+    </div>
+  ))}
         {posts.length === 0 && (
           <div className="text-center text-white/40 mt-10 gravity-target">No posts yet. Be the first to break the silence!</div>
         )}
