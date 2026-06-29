@@ -138,8 +138,21 @@ const ChannelChat = () => {
     if (file) {
       setAttachment(file);
     }
-    // clear input value so same file can be selected again if removed
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        const blob = items[i].getAsFile();
+        if (blob) {
+          setAttachment(blob);
+          e.preventDefault();
+        }
+      }
+    }
   };
 
   const renderAttachment = (url: string) => {
@@ -176,15 +189,19 @@ const ChannelChat = () => {
       {/* Chat Messages */}
       <div className="flex-1 overflow-y-auto hide-scrollbar p-5 flex flex-col gap-4">
         {messages.map(msg => (
-          <div key={msg.id} className={`flex gap-3 gravity-target animate-in slide-in-from-bottom-2 ${msg.authorId === currentUser?.uid ? 'flex-row-reverse' : ''}`}>
-            <img src={msg.authorAvatar} alt="Avatar" className="w-8 h-8 rounded-full border border-white/20 mt-auto" />
-            <div className={`max-w-[75%] rounded-2xl px-4 py-2 flex flex-col ${
-              msg.authorId === currentUser?.uid 
-                ? 'bg-gradient-to-br from-cyan-500 to-blue-500 text-white rounded-br-sm' 
-                : 'bg-white/10 text-white/90 rounded-bl-sm border border-white/5'
-            }`}>
-              {msg.content && <p className="text-sm">{msg.content}</p>}
-              {msg.attachmentUrl && renderAttachment(msg.attachmentUrl)}
+          <div key={msg.id} className="flex gap-4 hover:bg-white/5 p-2 -mx-2 rounded-lg transition-colors group animate-in slide-in-from-bottom-2">
+            <img src={msg.authorAvatar || '/default-avatar.png'} alt="Avatar" className="w-10 h-10 rounded-full border border-white/10 mt-0.5 object-cover shrink-0" />
+            <div className="flex flex-col">
+              <div className="flex items-baseline gap-2">
+                <span className="font-bold text-[14.5px] text-white/90 hover:underline cursor-pointer">{msg.authorName}</span>
+                <span className="text-[11px] text-white/40">
+                  {msg.timestamp?.toDate ? new Date(msg.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
+                </span>
+              </div>
+              <div className="text-white/85 text-[15px] leading-relaxed break-words mt-0.5 whitespace-pre-wrap">
+                {msg.content && <div>{msg.content}</div>}
+                {msg.attachmentUrl && renderAttachment(msg.attachmentUrl)}
+              </div>
             </div>
           </div>
         ))}
@@ -236,6 +253,7 @@ const ChannelChat = () => {
               type="text" 
               value={newMessage}
               onChange={handleTyping}
+              onPaste={handlePaste}
               placeholder={`Message #${activeChannel}`}
               className="liquid-input w-full pr-12 text-sm h-10"
               disabled={isUploading}
