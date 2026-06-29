@@ -8,13 +8,14 @@ import FriendsList from '../Friends/FriendsList';
 import { uploadMedia } from '../../utils/uploadMedia';
 import UserAvatar from '../UserAvatar';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
+import CommentsDrawer from './CommentsDrawer';
 
 const CenterFeed = () => {
-  const { currentUser, setMobileView, allUsers } = useAppContext();
+  const { currentUser, setMobileView, allUsers, leftSidebarOpen, setLeftSidebarOpen } = useAppContext();
   const [posts, setPosts] = useState<Post[]>([]);
   const [newPostContent, setNewPostContent] = useState('');
   const [homeTab, setHomeTab] = useState<'timeline' | 'friends'>('timeline');
-  const [attachment, setAttachment] = useState<File | null>(null);
+  const [attachments, setAttachments] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -23,6 +24,8 @@ const CenterFeed = () => {
   const [showOptionsFor, setShowOptionsFor] = useState<string | null>(null);
   const [showEmojiPickerForPost, setShowEmojiPickerForPost] = useState<string | null>(null);
   const [showInputEmojiPicker, setShowInputEmojiPicker] = useState(false);
+  const [activeCommentPostId, setActiveCommentPostId] = useState<string | null>(null);
+  const [showHeartAnim, setShowHeartAnim] = useState<string | null>(null);
   
   const postEmojiPickerRef = useRef<HTMLDivElement>(null);
   const inputEmojiPickerRef = useRef<HTMLDivElement>(null);
@@ -100,8 +103,7 @@ const CenterFeed = () => {
       if (item.kind === 'file') {
         const file = item.getAsFile();
         if (file) {
-          setAttachment(file);
-          break;
+          setAttachments(prev => [...prev, file]);
         }
       }
     }
@@ -109,13 +111,13 @@ const CenterFeed = () => {
 
   const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!newPostContent.trim() && !attachment) || !currentUser || isUploading) return;
+    if ((!newPostContent.trim() && attachments.length === 0) || !currentUser || isUploading) return;
 
     setIsUploading(true);
     try {
-      let attachmentUrl = '';
-      if (attachment) {
-        attachmentUrl = await uploadMedia(attachment);
+      let attachmentUrls: string[] = [];
+      if (attachments.length > 0) {
+        attachmentUrls = await Promise.all(attachments.map(file => uploadMedia(file)));
       }
 
       await addDoc(collection(db, 'posts'), {
@@ -123,13 +125,13 @@ const CenterFeed = () => {
         authorName: currentUser.username,
         authorAvatar: currentUser.avatar,
         content: newPostContent,
-        image: attachmentUrl || null,
+        images: attachmentUrls.length > 0 ? attachmentUrls : null,
         likes: 0,
         comments: [],
         timestamp: serverTimestamp()
       });
       setNewPostContent('');
-      setAttachment(null);
+      setAttachments([]);
     } catch (err) {
       console.error("Error adding post: ", err);
       alert("Failed to post: " + (err as Error).message);
@@ -143,7 +145,13 @@ const CenterFeed = () => {
       {/* Header */}
       <div className="liquid-glass p-4 md:p-6 flex justify-between items-center">
         <div className="flex items-center gap-3">
-          <button onClick={() => setMobileView('channels')} className="md:hidden text-white/70 hover:text-white transition-colors">
+          <button 
+            onClick={() => {
+              setMobileView('channels');
+              setLeftSidebarOpen(!leftSidebarOpen);
+            }} 
+            className="text-white/70 hover:text-white transition-colors"
+          >
             <Menu size={24} />
           </button>
           <div>
@@ -188,25 +196,29 @@ const CenterFeed = () => {
               rows={Math.max(2, newPostContent.split('\n').length)}
             />
             
-            {attachment && (
-              <div className="mt-2 relative inline-block">
-                {attachment.type.startsWith('image/') ? (
-                  <img src={URL.createObjectURL(attachment)} alt="Attachment preview" className="max-h-48 rounded-lg border border-white/10" />
-                ) : attachment.type.startsWith('video/') ? (
-                  <video src={URL.createObjectURL(attachment)} controls className="max-h-48 rounded-lg border border-white/10" />
-                ) : (
-                  <div className="bg-white/5 p-3 rounded-lg border border-white/10 flex items-center gap-2">
-                    <ImageIcon size={20} className="text-cyan-400" />
-                    <span className="text-sm truncate max-w-[200px]">{attachment.name}</span>
+            {attachments.length > 0 && (
+              <div className="mt-2 flex gap-2 overflow-x-auto pb-2 snap-x hide-scrollbar">
+                {attachments.map((file, idx) => (
+                  <div key={idx} className="relative inline-block shrink-0 snap-start">
+                    {file.type.startsWith('image/') ? (
+                      <img src={URL.createObjectURL(file)} alt="Attachment preview" className="h-48 rounded-lg border border-white/10 object-cover" />
+                    ) : file.type.startsWith('video/') ? (
+                      <video src={URL.createObjectURL(file)} controls className="h-48 rounded-lg border border-white/10" />
+                    ) : (
+                      <div className="bg-white/5 p-3 rounded-lg border border-white/10 flex items-center gap-2 h-48">
+                        <ImageIcon size={20} className="text-accent" />
+                        <span className="text-sm truncate max-w-[150px]">{file.name}</span>
+                      </div>
+                    )}
+                    <button 
+                      type="button" 
+                      onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))} 
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg hover:bg-red-600 z-10"
+                    >
+                      <X size={14} />
+                    </button>
                   </div>
-                )}
-                <button 
-                  type="button" 
-                  onClick={() => setAttachment(null)} 
-                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg hover:bg-red-600"
-                >
-                  <X size={14} />
-                </button>
+                ))}
               </div>
             )}
 
@@ -215,13 +227,18 @@ const CenterFeed = () => {
                 type="file" 
                 ref={fileInputRef} 
                 className="hidden" 
-                onChange={(e) => e.target.files?.[0] && setAttachment(e.target.files[0])}
+                multiple
+                onChange={(e) => {
+                  if (e.target.files) {
+                    setAttachments(prev => [...prev, ...Array.from(e.target.files!)]);
+                  }
+                }}
               />
               <div className="flex gap-2">
                 <button 
                   type="button" 
                   onClick={() => fileInputRef.current?.click()}
-                  className="text-white/40 hover:text-cyan-400 transition-colors p-2 hover:bg-white/5 rounded-lg"
+                  className="text-white/40 hover:text-accent transition-colors p-2 hover:bg-white/5 rounded-lg"
                 >
                   <ImageIcon size={20} />
                 </button>
@@ -229,7 +246,7 @@ const CenterFeed = () => {
                   <button 
                     type="button" 
                     onClick={() => setShowInputEmojiPicker(!showInputEmojiPicker)}
-                    className="text-white/40 hover:text-cyan-400 transition-colors p-2 hover:bg-white/5 rounded-lg"
+                    className="text-white/40 hover:text-accent transition-colors p-2 hover:bg-white/5 rounded-lg"
                   >
                     <Smile size={20} />
                   </button>
@@ -246,7 +263,7 @@ const CenterFeed = () => {
                   )}
                 </div>
               </div>
-              <button type="submit" disabled={(!newPostContent.trim() && !attachment) || isUploading} className="liquid-btn liquid-btn-primary px-6 py-2 text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+              <button type="submit" disabled={(!newPostContent.trim() && attachments.length === 0) || isUploading} className="liquid-btn liquid-btn-primary px-6 py-2 text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                 {isUploading ? 'Posting...' : <>Post <Send size={14} /></>}
               </button>
             </div>
@@ -307,30 +324,78 @@ const CenterFeed = () => {
                     <textarea 
                       value={editContent}
                       onChange={(e) => setEditContent(e.target.value)}
-                      className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:ring-1 focus:ring-cyan-500 resize-none outline-none"
+                      className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:ring-1 focus:ring-accent-dark resize-none outline-none"
                       rows={3}
                     />
                     <div className="flex justify-end gap-2 mt-2">
                       <button onClick={() => setEditingPostId(null)} className="px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-white/5 transition-colors text-white/70">Cancel</button>
-                      <button onClick={() => handleEditPost(post.id)} className="px-4 py-1.5 rounded-lg text-sm font-medium bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/40 transition-colors">Save</button>
+                      <button onClick={() => handleEditPost(post.id)} className="px-4 py-1.5 rounded-lg text-sm font-medium bg-accent-dark/20 text-accent hover:bg-accent-dark/40 transition-colors">Save</button>
                     </div>
                   </div>
                 ) : (
                   <p className="text-white/90 leading-relaxed text-[15px] break-words whitespace-pre-wrap">{post.content}</p>
                 )}
 
-                {post.image && (
-                  <div className="mt-4 rounded-xl overflow-hidden border border-white/10">
+                {post.image && !post.images && (
+                  <div className="mt-4 rounded-xl overflow-hidden border border-white/10 relative">
                     {post.image.match(/\.(mp4|webm)$/i) || post.image.includes('/video/upload/') ? (
                       <video src={post.image} controls className="max-h-[400px] w-full bg-black/20" />
                     ) : post.image.match(/\.(pdf|doc|docx)$/i) || post.image.includes('/raw/upload/') ? (
                       <a href={post.image} target="_blank" rel="noreferrer" className="flex items-center gap-3 p-4 bg-white/5 hover:bg-white/10 transition-colors">
-                        <ImageIcon size={24} className="text-cyan-400" />
+                        <ImageIcon size={24} className="text-accent" />
                         <span className="text-sm truncate">Download Attachment</span>
                       </a>
                     ) : (
-                      <img src={post.image} alt="Post content" className="max-h-[400px] w-full object-cover" />
+                      <div 
+                        className="relative cursor-pointer"
+                        onDoubleClick={() => {
+                          handleReaction(post.id, '❤️', post.reactions);
+                          setShowHeartAnim(post.id);
+                          setTimeout(() => setShowHeartAnim(null), 1000);
+                        }}
+                      >
+                        <img src={post.image} alt="Post content" className="max-h-[400px] w-full object-cover select-none" />
+                        {showHeartAnim === post.id && (
+                          <div className="absolute inset-0 flex items-center justify-center animate-out fade-out zoom-out duration-1000">
+                            <Heart size={80} className="text-white fill-white drop-shadow-2xl" />
+                          </div>
+                        )}
+                      </div>
                     )}
+                  </div>
+                )}
+
+                {post.images && post.images.length > 0 && (
+                  <div className="mt-4 flex overflow-x-auto snap-x snap-mandatory hide-scrollbar gap-2 pb-2">
+                    {post.images.map((imgUrl, idx) => (
+                      <div 
+                        key={idx} 
+                        className="shrink-0 w-full sm:w-[80%] snap-center rounded-xl overflow-hidden border border-white/10 relative cursor-pointer"
+                        onDoubleClick={() => {
+                          handleReaction(post.id, '❤️', post.reactions);
+                          setShowHeartAnim(`${post.id}-${idx}`);
+                          setTimeout(() => setShowHeartAnim(null), 1000);
+                        }}
+                      >
+                        {imgUrl.match(/\.(mp4|webm)$/i) || imgUrl.includes('/video/upload/') ? (
+                          <video src={imgUrl} controls className="h-[300px] md:h-[400px] w-full bg-black/20 object-contain" />
+                        ) : imgUrl.match(/\.(pdf|doc|docx)$/i) || imgUrl.includes('/raw/upload/') ? (
+                          <a href={imgUrl} target="_blank" rel="noreferrer" className="flex items-center gap-3 p-4 bg-white/5 hover:bg-white/10 transition-colors h-[300px] md:h-[400px]">
+                            <ImageIcon size={24} className="text-accent" />
+                            <span className="text-sm truncate">Download Attachment</span>
+                          </a>
+                        ) : (
+                          <>
+                            <img src={imgUrl} alt={`Post content ${idx + 1}`} className="h-[300px] md:h-[400px] w-full object-cover select-none" />
+                            {showHeartAnim === `${post.id}-${idx}` && (
+                              <div className="absolute inset-0 flex items-center justify-center animate-out fade-out zoom-out duration-1000">
+                                <Heart size={80} className="text-white fill-white drop-shadow-2xl" />
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
                 
@@ -341,7 +406,7 @@ const CenterFeed = () => {
                         key={emoji}
                         onClick={() => handleReaction(post.id, emoji, post.reactions)}
                         className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-sm transition-colors ${
-                          users.includes(currentUser?.uid || '') ? 'bg-cyan-500/20 text-cyan-400' : 'bg-white/5 text-white/60 hover:bg-white/10'
+                          users.includes(currentUser?.uid || '') ? 'bg-accent-dark/20 text-accent' : 'bg-white/5 text-white/60 hover:bg-white/10'
                         }`}
                       >
                         <span>{emoji}</span>
@@ -351,7 +416,7 @@ const CenterFeed = () => {
                     <div className="relative" ref={showEmojiPickerForPost === post.id ? postEmojiPickerRef : null}>
                       <button 
                         onClick={() => setShowEmojiPickerForPost(showEmojiPickerForPost === post.id ? null : post.id)}
-                        className="flex items-center gap-2 text-white/40 hover:text-cyan-400 transition-colors p-1.5 rounded-lg hover:bg-white/5"
+                        className="flex items-center gap-2 text-white/40 hover:text-accent transition-colors p-1.5 rounded-lg hover:bg-white/5"
                       >
                         <Smile size={18} />
                       </button>
@@ -374,9 +439,9 @@ const CenterFeed = () => {
                       <Heart size={18} className="group-hover:fill-pink-400/20" />
                       <span className="text-sm font-medium">{post.likes}</span>
                     </button>
-                    <button className="flex items-center gap-2 text-white/40 hover:text-cyan-400 transition-colors">
+                    <button onClick={() => setActiveCommentPostId(post.id)} className="flex items-center gap-2 text-white/40 hover:text-accent transition-colors">
                       <MessageSquare size={18} />
-                      <span className="text-sm font-medium">{post.comments?.length || 0}</span>
+                      <span className="text-sm font-medium">Chat</span>
                     </button>
                   </div>
                 </div>
@@ -393,6 +458,13 @@ const CenterFeed = () => {
       </div>
       </>
       )}
+      {activeCommentPostId && (
+        <CommentsDrawer 
+          postId={activeCommentPostId} 
+          onClose={() => setActiveCommentPostId(null)} 
+        />
+      )}
+      
     </div>
   );
 };

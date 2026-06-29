@@ -6,6 +6,7 @@ import { doc, getDoc, setDoc, serverTimestamp, collection, onSnapshot, updateDoc
 import type { User } from './types';
 import AuthScreen from './components/Auth/AuthScreen';
 import Layout from './components/Layout';
+import { OnboardingModal } from './components/Modals/OnboardingModal';
 
 function App() {
   const { currentUser, setCurrentUser, setAllUsers } = useAppContext();
@@ -25,63 +26,63 @@ function App() {
   }, [setAllUsers]);
 
   useEffect(() => {
+    let userUnsub: () => void;
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         const userRef = doc(db, 'users', user.uid);
         let userSnap = await getDoc(userRef);
         
-        // Wait briefly in case AuthScreen is currently creating the doc
         if (!userSnap.exists()) {
-          await new Promise(resolve => setTimeout(resolve, 1500));
-          userSnap = await getDoc(userRef);
-        }
-
-        let device = 'web';
-        if (/Mobi|Android|iPhone/i.test(navigator.userAgent)) {
-          device = 'mobile';
-        } else if (window.matchMedia('(display-mode: standalone)').matches || ('standalone' in navigator && (navigator as any).standalone)) {
-          device = 'desktop';
-        }
-
-        let userData: any;
-        if (userSnap.exists()) {
-          userData = userSnap.data();
-          // Update device if changed
-          if (userData.device !== device) {
-            await updateDoc(userRef, { device });
-            userData.device = device;
-          }
-        } else {
           const baseName = user.displayName || user.email?.split('@')[0] || 'User';
-          userData = {
+          await setDoc(userRef, {
             uid: user.uid,
             username: baseName,
             displayName: baseName,
             email: user.email,
             avatar: user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
             status: 'online',
-            device,
+            device: 'web',
+            activeDMs: [],
             createdAt: serverTimestamp()
-          };
-          await setDoc(userRef, userData);
+          });
         }
-        
-        setCurrentUser(userData as any);
-        setIsAuthLoading(false);
+
+        userUnsub = onSnapshot(userRef, async (docSnap) => {
+          if (docSnap.exists()) {
+            const userData = docSnap.data();
+            let device = 'web';
+            if (/Mobi|Android|iPhone/i.test(navigator.userAgent)) {
+              device = 'mobile';
+            } else if (window.matchMedia('(display-mode: standalone)').matches || ('standalone' in navigator && (navigator as any).standalone)) {
+              device = 'desktop';
+            }
+
+            if (userData.device !== device) {
+              await updateDoc(userRef, { device });
+              userData.device = device;
+            }
+            setCurrentUser(userData as any);
+            setIsAuthLoading(false);
+          }
+        });
       } else {
+        if (userUnsub) userUnsub();
         setCurrentUser(null);
         setIsAuthLoading(false);
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      if (userUnsub) userUnsub();
+    };
   }, [setCurrentUser]);
 
   return (
     <div className="w-full h-screen overflow-hidden text-white bg-[#0a0a0c]">
       {isAuthLoading ? (
         <div className="w-full h-full flex flex-col justify-center items-center">
-          <div className="w-12 h-12 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin mb-4"></div>
+          <div className="w-12 h-12 border-4 border-accent-dark/20 border-t-accent-dark rounded-full animate-spin mb-4"></div>
           <p className="text-white/50 text-sm font-medium animate-pulse">Connecting to Zephyr Hub...</p>
         </div>
       ) : !currentUser ? (
@@ -89,7 +90,10 @@ function App() {
           <AuthScreen />
         </div>
       ) : (
-        <Layout />
+        <>
+          <Layout />
+          {currentUser && !currentUser.profileCompleted && <OnboardingModal />}
+        </>
       )}
     </div>
   );

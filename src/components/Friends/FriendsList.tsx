@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { db } from '../../lib/firebase';
 import { collection, query, where, getDocs, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
-import { Check, X, Clock, Users } from 'lucide-react';
+import { Check, X, Clock, Users, MessageSquare } from 'lucide-react';
 
 interface Friendship {
   id: string;
@@ -16,7 +16,7 @@ interface Friendship {
 }
 
 const FriendsList = () => {
-  const { currentUser } = useAppContext();
+  const { currentUser, setActiveChannel, setMobileView } = useAppContext();
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'add'>('all');
   const [searchUsername, setSearchUsername] = useState('');
   const [searchError, setSearchError] = useState('');
@@ -103,6 +103,19 @@ const FriendsList = () => {
 
   const handleReject = async (id: string) => {
     await deleteDoc(doc(db, 'friendships', id));
+  };
+
+  const startDM = async (friendId: string) => {
+    if (!currentUser) return;
+    const dmId = `dm_${[currentUser.uid, friendId].sort().join('_')}`;
+    
+    if (!currentUser.activeDMs?.includes(friendId)) {
+      const newDMs = [...(currentUser.activeDMs || []), friendId];
+      await updateDoc(doc(db, 'users', currentUser.uid), { activeDMs: newDMs });
+    }
+    
+    setActiveChannel(dmId);
+    setMobileView('chat');
   };
 
   const pendingRequests = friendships.filter(f => f.status === 'pending');
@@ -206,16 +219,24 @@ const FriendsList = () => {
                 {allFriends.map(req => {
                   const friendUsername = req.requesterId === currentUser?.uid ? req.receiverUsername : req.requesterUsername;
                   const friendAvatar = req.requesterId === currentUser?.uid ? req.receiverAvatar : req.requesterAvatar;
+                  const friendId = req.users.find(id => id !== currentUser?.uid);
 
                   return (
-                    <div key={req.id} className="flex items-center justify-between p-3 hover:bg-white/5 rounded-xl border border-transparent hover:border-white/5 transition-all">
+                    <div key={req.id} className="flex items-center justify-between p-3 hover:bg-white/5 rounded-xl border border-transparent hover:border-white/5 transition-all group">
                       <div className="flex items-center gap-3">
                         <img src={friendAvatar || 'https://via.placeholder.com/40'} alt="Avatar" className="w-10 h-10 rounded-full" />
                         <div className="font-bold">{friendUsername}</div>
                       </div>
-                      <button onClick={() => handleReject(req.id)} className="w-9 h-9 rounded-full bg-black/40 flex items-center justify-center text-red-400 hover:bg-red-500 hover:text-white transition-colors opacity-0 group-hover:opacity-100">
-                        <X size={18} />
-                      </button>
+                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {friendId && (
+                          <button onClick={() => startDM(friendId)} className="w-9 h-9 rounded-full bg-black/40 flex items-center justify-center text-accent hover:bg-accent-dark hover:text-white transition-colors" title="Message">
+                            <MessageSquare size={16} />
+                          </button>
+                        )}
+                        <button onClick={() => handleReject(req.id)} className="w-9 h-9 rounded-full bg-black/40 flex items-center justify-center text-red-400 hover:bg-red-500 hover:text-white transition-colors" title="Remove Friend">
+                          <X size={18} />
+                        </button>
+                      </div>
                     </div>
                   );
                 })}

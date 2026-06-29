@@ -8,16 +8,27 @@ import { useAppContext } from '../context/AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const Layout = () => {
-  const { mobileView, activeChannel } = useAppContext();
+  const { mobileView, activeChannel, leftSidebarOpen } = useAppContext();
 
   return (
-    <div className="w-full h-full relative z-10 grid md:grid-cols-[280px_1fr] lg:grid-cols-[280px_1fr_240px] overflow-hidden">
+    <div className="w-full h-full relative z-10 flex overflow-hidden">
       {/* Mobile screens only show one view at a time based on mobileView state */}
-      <div className={`w-full h-full md:block ${mobileView === 'channels' ? 'block' : 'hidden'}`}>
-        <LeftSidebar />
+      
+      {/* Left Sidebar */}
+      <div 
+        className={`h-full shrink-0 transition-[width,opacity] duration-300 ease-in-out
+          ${mobileView === 'channels' ? 'w-full block opacity-100' : 'hidden md:block'}
+          ${leftSidebarOpen ? 'md:w-[280px] md:opacity-100' : 'md:w-0 md:opacity-0'}
+          overflow-hidden
+        `}
+      >
+        <div className="w-full md:w-[280px] h-full">
+          <LeftSidebar />
+        </div>
       </div>
       
-      <div className={`w-full h-full md:block border-l border-white/10 bg-black/10 relative overflow-hidden ${(mobileView !== 'channels' && mobileView !== 'members') ? 'block' : 'hidden'}`}>
+      {/* Center View */}
+      <div className={`flex-1 h-full border-l border-white/10 bg-black/10 relative overflow-hidden ${(mobileView !== 'channels' && mobileView !== 'members') ? 'block' : 'hidden md:block'}`}>
         <AnimatePresence mode="wait">
           <motion.div
             key={activeChannel}
@@ -32,7 +43,8 @@ const Layout = () => {
         </AnimatePresence>
       </div>
 
-      <div className={`w-full h-full lg:block ${mobileView === 'members' ? 'block' : 'hidden'}`}>
+      {/* Right Sidebar */}
+      <div className={`h-full shrink-0 ${mobileView === 'members' ? 'w-full block' : 'hidden lg:block lg:w-[240px]'}`}>
         <RightSidebar />
       </div>
     </div>

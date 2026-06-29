@@ -1,9 +1,17 @@
 @import "tailwindcss";
 
+:root {
+  --accent-color: #22d3ee; /* cyan-400 */
+  --accent-dark: #06b6d4; /* cyan-500 */
+  --accent-glow: rgba(34, 211, 238, 0.4);
+}
+
 @theme {
   --font-sans: 'Inter', sans-serif;
   --color-dark: #0a0a0c;
   --color-glass: rgba(18, 18, 24, 0.45);
+  --color-accent: var(--accent-color);
+  --color-accent-dark: var(--accent-dark);
 }
 
 /* Base Styling & Mesh Gradient */
@@ -48,8 +56,8 @@ body {
     transition: all 0.3s ease;
 }
 .liquid-input:focus {
-    border-color: rgba(0, 255, 255, 0.5);
-    box-shadow: 0 0 15px rgba(0,255,255,0.2);
+    border-color: var(--accent-color);
+    box-shadow: 0 0 15px var(--accent-glow);
     background: rgba(0, 0, 0, 0.5);
 }
 
@@ -71,13 +79,13 @@ body {
     box-shadow: 0 5px 15px rgba(0,0,0,0.3);
 }
 .liquid-btn-primary {
-    background: linear-gradient(135deg, rgba(0, 210, 255, 0.2), rgba(58, 123, 213, 0.2));
-    border-color: rgba(0, 210, 255, 0.4);
+    background: linear-gradient(135deg, var(--accent-glow), rgba(58, 123, 213, 0.2));
+    border-color: var(--accent-color);
     color: #fff;
 }
 .liquid-btn-primary:hover {
-    background: linear-gradient(135deg, rgba(0, 210, 255, 0.4), rgba(58, 123, 213, 0.4));
-    box-shadow: 0 0 20px rgba(0, 210, 255, 0.3);
+    background: linear-gradient(135deg, var(--accent-color), rgba(58, 123, 213, 0.4));
+    box-shadow: 0 0 20px var(--accent-glow);
 }
 
 /* Status Colors */
@@ -110,8 +118,8 @@ body {
 }
 .server-icon:hover {
     border-radius: 12px;
-    background-color: rgba(0, 210, 255, 0.2);
-    box-shadow: 0 0 20px rgba(0, 210, 255, 0.4);
+    background-color: var(--accent-glow);
+    box-shadow: 0 0 20px var(--accent-glow);
 }
 
 /* Gravity target cursor hints */

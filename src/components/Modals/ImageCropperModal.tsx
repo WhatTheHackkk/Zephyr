@@ -80,7 +80,7 @@ const ImageCropperModal: React.FC<ImageCropperModalProps> = ({
             step={0.1}
             aria-labelledby="Zoom"
             onChange={(e) => setZoom(Number(e.target.value))}
-            className="w-full accent-cyan-500 bg-white/10 rounded-full appearance-none h-1.5"
+            className="w-full accent-accent-dark bg-white/10 rounded-full appearance-none h-1.5"
           />
         </div>
         

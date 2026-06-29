@@ -112,11 +112,11 @@ const AuthScreen = () => {
 
   return (
     <div className="liquid-glass p-8 w-full max-w-md mx-4 animate-in fade-in zoom-in duration-500 relative overflow-hidden">
-      <div className="absolute top-0 right-0 -mr-16 -mt-16 w-32 h-32 bg-cyan-500 rounded-full mix-blend-screen filter blur-[40px] opacity-20"></div>
+      <div className="absolute top-0 right-0 -mr-16 -mt-16 w-32 h-32 bg-accent-dark rounded-full mix-blend-screen filter blur-[40px] opacity-20"></div>
       <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-32 h-32 bg-purple-500 rounded-full mix-blend-screen filter blur-[40px] opacity-20"></div>
 
       <div className="text-center mb-8 relative z-10">
-        <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-indigo-400">Zephyr</h1>
+        <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-accent to-indigo-400">Zephyr</h1>
         <p className="text-white/60 mt-2 text-sm uppercase tracking-widest font-medium">Memories worth sharing</p>
       </div>
 
@@ -158,7 +158,7 @@ const AuthScreen = () => {
               type="button" 
               onClick={handleResetPassword}
               disabled={loading}
-              className="text-sm text-cyan-400 hover:text-cyan-300 transition-colors disabled:opacity-50"
+              className="text-sm text-accent hover:text-accent transition-colors disabled:opacity-50"
             >
               Forgot Password?
             </button>
@@ -185,7 +185,7 @@ const AuthScreen = () => {
             setPassword('');
             setUsername('');
           }} 
-          className="ml-2 text-cyan-400 hover:text-cyan-300 transition-colors"
+          className="ml-2 text-accent hover:text-accent transition-colors"
         >
           {isLogin ? 'Sign up' : 'Log in'}
         </button>

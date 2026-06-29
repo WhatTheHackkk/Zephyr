@@ -12,8 +12,9 @@ interface ProfileModalProps {
 }
 
 const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
-  const { currentUser, setCurrentUser } = useAppContext();
+  const { currentUser, setCurrentUser, theme, setTheme } = useAppContext();
   
+  const [activeTab, setActiveTab] = useState<'account' | 'appearance'>('account');
   const [displayName, setDisplayName] = useState(currentUser?.displayName || '');
   const [username, setUsername] = useState(currentUser?.username || '');
   const [bio, setBio] = useState(currentUser?.bio || '');
@@ -146,7 +147,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
         {/* Header & Avatar Wrapper */}
         <div className="relative shrink-0">
           {/* Banner */}
-          <div className="relative h-32 bg-cyan-900/30 group z-10">
+          <div className="relative h-32 bg-black/30 group z-10">
             {renderMedia(banner, "w-full h-full")}
             <label className={`absolute top-2 right-2 p-2 bg-black/60 rounded-full cursor-pointer hover:bg-black/80 transition-all backdrop-blur-sm z-20 ${isUploading === 'banner' ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
               <input type="file" accept="image/*,video/mp4,video/webm" className="hidden" onChange={(e) => handleFileSelect(e, 'banner')} disabled={isUploading !== null} />
@@ -171,19 +172,35 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
           </div>
         </div>
 
-        {/* Spacer for Absolute Avatar */}
-        <div className="h-14 shrink-0"></div>
+        {/* Spacer & Tabs */}
+        <div className="h-14 shrink-0 flex items-end justify-end px-6 border-b border-white/5">
+          <div className="flex gap-6">
+            <button 
+              onClick={() => setActiveTab('account')} 
+              className={`text-sm font-medium pb-3 border-b-2 transition-all ${activeTab === 'account' ? 'border-accent text-accent' : 'border-transparent text-white/50 hover:text-white/80'}`}
+            >
+              Account
+            </button>
+            <button 
+              onClick={() => setActiveTab('appearance')} 
+              className={`text-sm font-medium pb-3 border-b-2 transition-all ${activeTab === 'appearance' ? 'border-accent text-accent' : 'border-transparent text-white/50 hover:text-white/80'}`}
+            >
+              Appearance
+            </button>
+          </div>
+        </div>
 
         {/* Content */}
-        <div className="p-6 pt-0 overflow-y-auto min-h-[50vh] hide-scrollbar relative">
+        <div className="p-6 overflow-y-auto min-h-[50vh] hide-scrollbar relative">
           
+          {activeTab === 'account' && (
           <form id="profile-form" onSubmit={handleSave} className="flex flex-col gap-5">
 
             {error && <div className="p-3 rounded bg-red-500/20 text-red-400 text-sm border border-red-500/30">{error}</div>}
 
             {requiresPassword && (
-              <div className="p-4 rounded-xl bg-cyan-500/10 border border-cyan-500/30 animate-in slide-in-from-top-2">
-                <p className="text-sm text-cyan-300 mb-3">Please enter your password to confirm username change.</p>
+              <div className="p-4 rounded-xl bg-accent-dark/10 border border-accent-dark/30 animate-in slide-in-from-top-2">
+                <p className="text-sm text-accent mb-3">Please enter your password to confirm username change.</p>
                 <input 
                   type="password" 
                   value={password} 
@@ -258,6 +275,34 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
             </div>
 
           </form>
+          )}
+
+          {activeTab === 'appearance' && (
+            <div className="flex flex-col gap-6 animate-in slide-in-from-right-4 fade-in">
+              <div>
+                <h3 className="text-lg font-bold text-white mb-1">Theme Color</h3>
+                <p className="text-sm text-white/50 mb-4">Choose your favorite accent color. This will update the entire app instantly.</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {[
+                    { id: 'cyan', name: 'Cyan', color: '#22d3ee' },
+                    { id: 'purple', name: 'Purple', color: '#c084fc' },
+                    { id: 'green', name: 'Green', color: '#4ade80' },
+                    { id: 'rose', name: 'Rose', color: '#fb7185' },
+                    { id: 'orange', name: 'Orange', color: '#fb923c' }
+                  ].map(t => (
+                    <button
+                      key={t.id}
+                      onClick={() => setTheme(t.id)}
+                      className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border transition-all ${theme === t.id ? 'border-accent bg-accent/10 scale-105' : 'border-white/10 hover:border-white/20 bg-black/40 hover:bg-black/60'}`}
+                    >
+                      <div className="w-8 h-8 rounded-full shadow-lg" style={{ backgroundColor: t.color }}></div>
+                      <span className={`text-sm font-medium ${theme === t.id ? 'text-accent' : 'text-white/70'}`}>{t.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}

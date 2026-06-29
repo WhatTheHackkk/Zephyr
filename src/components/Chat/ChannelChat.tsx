@@ -3,17 +3,23 @@ import { useAppContext } from '../../context/AppContext';
 import { db } from '../../lib/firebase';
 import { collection, addDoc, query, onSnapshot, where, serverTimestamp, doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import type { ChatMessage } from '../../types';
-import { Send, Hash, MoreVertical, ChevronLeft, Plus, FileText, Mic, Camera, X, Smile, Users, MoreHorizontal, Edit2, Trash2 } from 'lucide-react';
+import { Send, Hash, MoreVertical, ChevronLeft, Plus, FileText, Mic, Camera, Video, X, Smile, Users, MoreHorizontal, Edit2, Trash2, MessageSquare } from 'lucide-react';
 import UserAvatar from '../UserAvatar';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
+import { GifPicker } from './GifPicker';
+import UserProfileModal from '../Modals/UserProfileModal';
 
 const ChannelChat = () => {
-  const { currentUser, activeChannel, setMobileView, allUsers } = useAppContext();
+  const { currentUser, activeChannel, setActiveChannel, setMobileView, allUsers, leftSidebarOpen, setLeftSidebarOpen } = useAppContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
+  const [profileModalUserId, setProfileModalUserId] = useState<string | null>(null);
   const [typingNames, setTypingNames] = useState<string[]>([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const [showGifPicker, setShowGifPicker] = useState(false);
+  const gifPickerRef = useRef<HTMLDivElement>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editMessageContent, setEditMessageContent] = useState('');
   const [showOptionsFor, setShowOptionsFor] = useState<string | null>(null);
@@ -24,14 +30,39 @@ const ChannelChat = () => {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
+  
   const [isRecordingAudio, setIsRecordingAudio] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const [cameraMode, setCameraMode] = useState<'photo' | 'video'>('photo');
+  const [isRecordingVideo, setIsRecordingVideo] = useState(false);
   
+  const startDM = async (friendId: string) => {
+    if (!currentUser) return;
+    const dmId = `dm_${[currentUser.uid, friendId].sort().join('_')}`;
+
+    if (!currentUser.activeDMs?.includes(friendId)) {
+      const newDMs = [...(currentUser.activeDMs || []), friendId];
+      await updateDoc(doc(db, 'users', currentUser.uid), { activeDMs: newDMs });
+    }
+    
+    setActiveChannel(dmId);
+    setMobileView('chat');
+  };
+
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (activeChannel) {
+      if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+        setLeftSidebarOpen(false);
+      }
+    }
+  }, [activeChannel, setLeftSidebarOpen]);
 
   useEffect(() => {
     if (!activeChannel) return;
@@ -101,6 +132,9 @@ const ChannelChat = () => {
     const handleClickOutside = (event: MouseEvent) => {
       if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
         setShowEmojiPicker(false);
+      }
+      if (gifPickerRef.current && !gifPickerRef.current.contains(event.target as Node)) {
+        setShowGifPicker(false);
       }
       if (messageEmojiPickerRef.current && !messageEmojiPickerRef.current.contains(event.target as Node)) {
         setShowEmojiPickerForMessage(null);
@@ -179,11 +213,19 @@ const ChannelChat = () => {
         channelId: activeChannel,
         content: newMessage,
         attachmentUrl,
+        replyToId: replyingTo?.id || null,
+        replyToContent: replyingTo?.content || null,
+        replyToAuthor: replyingTo?.authorName || null,
         timestamp: serverTimestamp()
       });
       
+      await setDoc(doc(db, 'channel_meta', activeChannel), {
+        lastMessageAt: serverTimestamp()
+      }, { merge: true });
+      
       setNewMessage('');
       setAttachment(null);
+      setReplyingTo(null);
     } catch (err) {
       console.error("Error sending message: ", err);
     } finally {
@@ -208,10 +250,37 @@ const ChannelChat = () => {
     }
   };
 
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (!isDragging) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    // Only set to false if we are leaving the main container (not children)
+    if (e.currentTarget === e.target) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
+        setAttachment(file);
+      }
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setAttachment(file);
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      if (file) {
+        setAttachment(file);
+      }
     }
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -263,12 +332,12 @@ const ChannelChat = () => {
     }
   };
 
-  const startCamera = async () => {
+  const startCamera = async (mode: 'photo' | 'video' = 'photo') => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: mode === 'video' });
       streamRef.current = stream;
+      setCameraMode(mode);
       setShowCamera(true);
-      // Timeout needed for the modal to render and videoRef to become available
       setTimeout(() => {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
@@ -276,7 +345,7 @@ const ChannelChat = () => {
       }, 100);
     } catch (err) {
       console.error("Error accessing camera:", err);
-      alert("Camera access denied or not available.");
+      alert("Camera access denied or no camera found on this device.");
     }
   };
 
@@ -286,6 +355,35 @@ const ChannelChat = () => {
       streamRef.current = null;
     }
     setShowCamera(false);
+    if (isRecordingVideo && mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      setIsRecordingVideo(false);
+    }
+  };
+
+  const toggleRecordingVideo = () => {
+    if (isRecordingVideo && mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      setIsRecordingVideo(false);
+      stopCamera();
+    } else if (streamRef.current) {
+      const mediaRecorder = new MediaRecorder(streamRef.current);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const videoBlob = new Blob(audioChunksRef.current, { type: 'video/webm' });
+        const file = new File([videoBlob], `video_${Date.now()}.webm`, { type: 'video/webm' });
+        setAttachment(file);
+      };
+
+      mediaRecorder.start();
+      setIsRecordingVideo(true);
+    }
   };
 
   const takePhoto = () => {
@@ -322,16 +420,88 @@ const ChannelChat = () => {
     }
   };
 
+  const renderContent = (content: string) => {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const parts = content.split(urlRegex);
+    return parts.map((part, i) => {
+      if (part.match(urlRegex)) {
+        const ytMatch = part.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/);
+        if (ytMatch) {
+          return (
+            <div key={i} className="mt-2 mb-2 block">
+              <iframe 
+                width="100%" 
+                height="240" 
+                src={`https://www.youtube.com/embed/${ytMatch[1]}`} 
+                title="YouTube video player" 
+                frameBorder="0" 
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                allowFullScreen
+                className="rounded-lg max-w-[400px]"
+              ></iframe>
+            </div>
+          );
+        }
+        if (part.match(/\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i)) {
+          return (
+            <div key={i} className="mt-2 mb-2 block">
+              <a href={part} target="_blank" rel="noreferrer" className="inline-block">
+                <img src={part} alt="link preview" className="max-h-64 rounded-lg object-contain bg-black/20 hover:opacity-90 transition-opacity" />
+              </a>
+            </div>
+          );
+        }
+        return <a key={i} href={part} target="_blank" rel="noreferrer" className="text-accent hover:underline break-all">{part}</a>;
+      }
+      return <span key={i}>{part}</span>;
+    });
+  };
+
+  const isDM = activeChannel?.startsWith('dm_');
+  let chatTitle = activeChannel;
+  let chatIcon = <Hash size={20} className="text-accent" />;
+  if (isDM && currentUser) {
+    const uids = activeChannel.replace('dm_', '').split('_');
+    const otherUid = uids.find(id => id !== currentUser.uid);
+    const otherUser = allUsers.find(u => u.uid === otherUid);
+    chatTitle = otherUser ? (otherUser.displayName || otherUser.username) : 'Direct Message';
+    chatIcon = <Users size={20} className="text-accent" />;
+  }
+
   return (
-    <div className="liquid-glass h-full flex flex-col gravity-target relative overflow-hidden">
+    <div 
+      className="liquid-glass h-full flex flex-col gravity-target relative overflow-hidden"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Drag & Drop Overlay */}
+      {isDragging && (
+        <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm border-2 border-accent border-dashed m-4 rounded-xl flex items-center justify-center pointer-events-none">
+          <div className="bg-black/80 px-8 py-6 rounded-2xl flex flex-col items-center gap-4 text-accent shadow-2xl shadow-accent-dark/20">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            <h2 className="text-xl font-bold">Drop files to attach</h2>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="p-4 md:p-5 border-b border-white/10 flex justify-between items-center bg-black/20">
         <div className="flex items-center gap-2">
-          <button onClick={() => setMobileView('channels')} className="md:hidden text-white/70 hover:text-white transition-colors mr-1">
-            <ChevronLeft size={24} />
+          <button 
+            onClick={() => {
+              setMobileView('channels');
+              setLeftSidebarOpen(!leftSidebarOpen);
+            }} 
+            className="text-white/70 hover:text-white transition-colors mr-1"
+          >
+            <ChevronLeft size={24} className="md:hidden" />
+            <div className="hidden md:block">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+            </div>
           </button>
-          <Hash size={20} className="text-cyan-400" />
-          <h3 className="font-bold text-lg capitalize truncate max-w-[120px] md:max-w-none">{activeChannel}</h3>
+          {chatIcon}
+          <h3 className="font-bold text-lg capitalize truncate max-w-[120px] md:max-w-none">{chatTitle}</h3>
         </div>
         <div className="flex items-center gap-4">
           <button onClick={() => setMobileView('members')} className="lg:hidden text-white/40 hover:text-white transition-colors">
@@ -351,90 +521,117 @@ const ChannelChat = () => {
           const avatar = author?.avatar || msg.authorAvatar;
           const status = author?.status || 'offline';
           const device = author?.device;
+          const isCurrentUser = msg.authorId === currentUser?.uid;
+          const isDMMsg = isDM && isCurrentUser;
 
           return (
-            <div key={msg.id} className="flex gap-4 hover:bg-white/5 p-2 -mx-2 rounded-lg transition-colors group animate-in slide-in-from-bottom-2 relative" onMouseLeave={() => setShowOptionsFor(null)}>
+            <div key={msg.id} className={`flex gap-4 hover:bg-white/5 p-2 -mx-2 rounded-lg transition-colors group animate-in slide-in-from-bottom-2 relative ${isDMMsg ? 'flex-row-reverse text-right' : ''}`} onMouseLeave={() => setShowOptionsFor(null)}>
               
-              <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
-                <div className="relative" ref={showEmojiPickerForMessage === msg.id ? messageEmojiPickerRef : null}>
-                  <button onClick={() => setShowEmojiPickerForMessage(showEmojiPickerForMessage === msg.id ? null : msg.id)} className="text-white/40 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10">
-                    <Smile size={18} />
+                <div className={`absolute top-2 z-10 opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity ${isDMMsg ? 'left-2' : 'right-2'}`}>
+                  <button onClick={() => setReplyingTo(msg)} className="text-white/40 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10" title="Reply">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 17 4 12 9 7"></polyline><path d="M20 18v-2a4 4 0 0 0-4-4H4"></path></svg>
                   </button>
-                  {showEmojiPickerForMessage === msg.id && (
-                    <div className="absolute right-0 top-full mt-1 z-50">
-                      <EmojiPicker 
-                        theme={Theme.DARK} 
-                        onEmojiClick={(emojiData) => {
-                          handleReaction(msg.id, emojiData.emoji, msg.reactions);
-                          setShowEmojiPickerForMessage(null);
-                        }} 
-                      />
-                    </div>
-                  )}
-                </div>
-                
-                {msg.authorId === currentUser?.uid && (
+                  <div className="relative" ref={showEmojiPickerForMessage === msg.id ? messageEmojiPickerRef : null}>
+                    <button onClick={() => setShowEmojiPickerForMessage(showEmojiPickerForMessage === msg.id ? null : msg.id)} className="text-white/40 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10">
+                      <Smile size={18} />
+                    </button>
+                    {showEmojiPickerForMessage === msg.id && (
+                      <div className="absolute right-0 top-full mt-1 z-50">
+                        <EmojiPicker 
+                          theme={Theme.DARK} 
+                          onEmojiClick={(emojiData) => {
+                            handleReaction(msg.id, emojiData.emoji, msg.reactions);
+                            setShowEmojiPickerForMessage(null);
+                          }} 
+                        />
+                      </div>
+                    )}
+                  </div>
+                  
                   <div className="relative">
                     <button onClick={() => setShowOptionsFor(showOptionsFor === msg.id ? null : msg.id)} className="text-white/40 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10">
                       <MoreHorizontal size={18} />
                     </button>
                     {showOptionsFor === msg.id && (
-                      <div className="absolute right-0 top-full mt-1 bg-[#121218] border border-white/10 rounded-xl shadow-xl overflow-hidden z-20 w-32">
-                        <button 
-                          onClick={() => { setEditingMessageId(msg.id); setEditMessageContent(msg.content); setShowOptionsFor(null); }}
-                          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-colors"
-                        >
-                          <Edit2 size={14} /> Edit
-                        </button>
-                        <button 
-                          onClick={() => { handleDeleteMessage(msg.id); setShowOptionsFor(null); }}
-                          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
-                        >
-                          <Trash2 size={14} /> Delete
-                        </button>
+                      <div className={`absolute ${isDMMsg ? 'left-0' : 'right-0'} top-full mt-1 bg-[#121218] border border-white/10 rounded-xl shadow-xl overflow-hidden z-20 w-40`}>
+                        {msg.authorId === currentUser?.uid ? (
+                          <>
+                            <button 
+                              onClick={() => { setEditingMessageId(msg.id); setEditMessageContent(msg.content); setShowOptionsFor(null); }}
+                              className="w-full flex items-center gap-3 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+                            >
+                              <Edit2 size={14} /> Edit
+                            </button>
+                            <button 
+                              onClick={() => { handleDeleteMessage(msg.id); setShowOptionsFor(null); }}
+                              className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
+                            >
+                              <Trash2 size={14} /> Delete
+                            </button>
+                          </>
+                        ) : (
+                          <button 
+                            onClick={() => { startDM(msg.authorId); setShowOptionsFor(null); }}
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-accent hover:text-accent hover:bg-accent-dark/10 transition-colors"
+                          >
+                            <MessageSquare size={14} /> Send a message
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
-                )}
-              </div>
+                </div>
 
-              <UserAvatar src={avatar} status={status as any} device={device as any} size="md" className="mt-0.5" />
+              <div 
+                className="w-10 h-10 rounded-full bg-black/40 border border-white/5 overflow-hidden shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => setProfileModalUserId(msg.authorId)}
+              >
+                <UserAvatar src={avatar} status={status as any} device={device as any} size="md" className="mt-0.5" />
+              </div>
+              
               <div className="flex flex-col flex-1 min-w-0 pr-16">
-                <div className="flex items-baseline gap-2">
-                  <span className="font-bold text-[14.5px] text-white/90 hover:underline cursor-pointer truncate">{displayName}</span>
+                <div className={`flex items-baseline gap-2 ${isDMMsg ? 'flex-row-reverse' : ''}`}>
+                  <span className="font-bold text-[14.5px] text-white/90 hover:underline cursor-pointer truncate" onClick={() => setProfileModalUserId(msg.authorId)}>{displayName}</span>
                   <span className="text-[11px] text-white/40 shrink-0">
                     {msg.timestamp?.toDate ? new Date(msg.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
                   </span>
                 </div>
+              
+              {msg.replyToId && (
+                <div className={`flex items-center gap-2 mt-1 mb-1 text-white/50 text-xs border-white/10 cursor-pointer hover:text-white/70 ${isDMMsg ? 'flex-row-reverse border-r-2 pr-2' : 'border-l-2 pl-2'}`}>
+                  <div className="font-semibold">{msg.replyToAuthor}</div>
+                  <div className="truncate max-w-[200px] md:max-w-md">{msg.replyToContent}</div>
+                </div>
+              )}
               
               {editingMessageId === msg.id ? (
                 <div className="mt-1">
                   <textarea 
                     value={editMessageContent}
                     onChange={(e) => setEditMessageContent(e.target.value)}
-                    className="w-full bg-black/20 border border-white/10 rounded-lg p-2 text-white focus:ring-1 focus:ring-cyan-500 resize-none outline-none text-sm"
+                    className="w-full bg-black/20 border border-white/10 rounded-lg p-2 text-white focus:ring-1 focus:ring-accent-dark resize-none outline-none text-sm"
                     rows={2}
                   />
                   <div className="flex justify-end gap-2 mt-1">
                     <button onClick={() => setEditingMessageId(null)} className="px-3 py-1 rounded text-xs hover:bg-white/5 transition-colors text-white/70">Cancel</button>
-                    <button onClick={() => handleEditMessage(msg.id)} className="px-3 py-1 rounded text-xs bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/40 transition-colors">Save</button>
+                    <button onClick={() => handleEditMessage(msg.id)} className="px-3 py-1 rounded text-xs bg-accent-dark/20 text-accent hover:bg-accent-dark/40 transition-colors">Save</button>
                   </div>
                 </div>
               ) : (
                 <div className="text-white/85 text-[15px] leading-relaxed break-words mt-0.5 whitespace-pre-wrap">
-                  {msg.content && <div>{msg.content}</div>}
+                  {msg.content && <div>{renderContent(msg.content)}</div>}
                   {msg.attachmentUrl && renderAttachment(msg.attachmentUrl)}
                 </div>
               )}
               
               {msg.reactions && Object.keys(msg.reactions).length > 0 && (
-                <div className="flex gap-1.5 flex-wrap mt-1">
+                <div className={`flex gap-1.5 flex-wrap mt-1 ${isDMMsg ? 'justify-end' : ''}`}>
                   {Object.entries(msg.reactions).map(([emoji, users]) => (
                     <button 
                       key={emoji}
                       onClick={() => handleReaction(msg.id, emoji, msg.reactions)}
                       className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs transition-colors ${
-                        users.includes(currentUser?.uid || '') ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : 'bg-white/5 text-white/60 hover:bg-white/10 border border-transparent'
+                        users.includes(currentUser?.uid || '') ? 'bg-accent-dark/20 text-accent border border-accent-dark/30' : 'bg-white/5 text-white/60 hover:bg-white/10 border border-transparent'
                       }`}
                     >
                       <span>{emoji}</span>
@@ -452,11 +649,11 @@ const ChannelChat = () => {
       {/* Input */}
       <div className="p-4 bg-black/20 border-t border-white/10 relative flex flex-col">
         {typingNames.length > 0 && (
-          <div className="absolute -top-6 left-6 text-xs text-cyan-400 font-medium animate-pulse flex items-center gap-2">
+          <div className="absolute -top-6 left-6 text-xs text-accent font-medium animate-pulse flex items-center gap-2">
             <div className="flex gap-1">
-              <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-              <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-              <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+              <span className="w-1.5 h-1.5 bg-accent rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+              <span className="w-1.5 h-1.5 bg-accent rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+              <span className="w-1.5 h-1.5 bg-accent rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
             </div>
             {typingNames.join(', ')} {typingNames.length === 1 ? 'is' : 'are'} typing...
           </div>
@@ -464,10 +661,22 @@ const ChannelChat = () => {
 
         {attachment && (
           <div className="mb-3 flex items-center gap-2 bg-white/5 border border-white/10 p-2 rounded-lg w-fit relative animate-in zoom-in-95">
-            <div className="text-cyan-400"><FileText size={20} /></div>
+            <div className="text-accent"><FileText size={20} /></div>
             <span className="text-sm text-white/80 max-w-[200px] truncate">{attachment.name}</span>
             <button onClick={() => setAttachment(null)} className="ml-2 w-5 h-5 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center hover:bg-red-500/40">
-              <ChevronLeft size={12} className="rotate-45" /> {/* Close X using Chevron */}
+              <ChevronLeft size={12} className="rotate-45" />
+            </button>
+          </div>
+        )}
+
+        {replyingTo && (
+          <div className="mb-3 flex items-center justify-between bg-black/40 border-l-2 border-accent p-2 rounded-r-lg text-sm w-full">
+            <div className="flex items-center gap-2 truncate text-white/70">
+              <span className="font-semibold text-white/90">Replying to {replyingTo.authorName}:</span>
+              <span className="truncate">{replyingTo.content}</span>
+            </div>
+            <button onClick={() => setReplyingTo(null)} className="ml-2 text-white/40 hover:text-white transition-colors">
+              <X size={16} />
             </button>
           </div>
         )}
@@ -501,6 +710,24 @@ const ChannelChat = () => {
             />
             
             <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              <div className="relative" ref={gifPickerRef}>
+                <button
+                  type="button"
+                  onClick={() => setShowGifPicker(!showGifPicker)}
+                  className="w-8 h-8 rounded-full bg-white/5 text-white/70 flex items-center justify-center hover:bg-white/10 hover:text-white transition-colors text-xs font-bold"
+                >
+                  GIF
+                </button>
+                {showGifPicker && (
+                  <GifPicker 
+                    onGifSelect={(url) => {
+                      setNewMessage(prev => prev + (prev ? ' ' : '') + url);
+                      setShowGifPicker(false);
+                    }} 
+                  />
+                )}
+              </div>
+
               <div className="relative" ref={emojiPickerRef}>
                 <button 
                   type="button" 
@@ -541,10 +768,17 @@ const ChannelChat = () => {
                   </button>
                   <button 
                     type="button" 
-                    onClick={startCamera}
+                    onClick={() => startCamera('photo')}
                     className="w-8 h-8 rounded-full bg-white/5 text-white/70 flex items-center justify-center hover:bg-white/10 hover:text-white transition-colors"
                   >
                     <Camera size={16} />
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => startCamera('video')}
+                    className="w-8 h-8 rounded-full bg-white/5 text-white/70 flex items-center justify-center hover:bg-white/10 hover:text-white transition-colors"
+                  >
+                    <Video size={16} />
                   </button>
                 </>
               )}
@@ -552,7 +786,7 @@ const ChannelChat = () => {
               <button 
                 type="submit" 
                 disabled={(!newMessage.trim() && !attachment) || isUploading || isRecordingAudio} 
-                className="w-8 h-8 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center hover:bg-cyan-500/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ml-1"
+                className="w-8 h-8 rounded-full bg-accent-dark/20 text-accent flex items-center justify-center hover:bg-accent-dark/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ml-1"
               >
                 <Send size={14} className="ml-0.5" />
               </button>
@@ -580,17 +814,28 @@ const ChannelChat = () => {
                 className="w-full h-full object-contain"
               />
             </div>
-            <div className="p-4 bg-black/40 flex justify-center border-t border-white/10">
-              <button 
-                onClick={takePhoto}
-                className="w-14 h-14 rounded-full border-4 border-white/20 bg-white/10 hover:bg-white hover:border-white transition-all flex items-center justify-center"
-              >
-                <div className="w-10 h-10 rounded-full bg-transparent hover:bg-white/20 transition-all"></div>
-              </button>
+            <div className="p-4 bg-black/40 flex justify-center border-t border-white/10 gap-4">
+              {cameraMode === 'photo' ? (
+                <button 
+                  onClick={takePhoto}
+                  className="w-14 h-14 rounded-full border-4 border-white/20 bg-white/10 hover:bg-white hover:border-white transition-all flex items-center justify-center"
+                >
+                  <div className="w-10 h-10 rounded-full bg-transparent hover:bg-white/20 transition-all"></div>
+                </button>
+              ) : (
+                <button 
+                  onClick={toggleRecordingVideo}
+                  className={`w-14 h-14 rounded-full border-4 ${isRecordingVideo ? 'border-red-500/20 bg-red-500/10' : 'border-white/20 bg-white/10 hover:bg-white hover:border-white'} transition-all flex items-center justify-center`}
+                >
+                  <div className={`transition-all ${isRecordingVideo ? 'w-6 h-6 rounded bg-red-500' : 'w-10 h-10 rounded-full bg-red-500 hover:bg-red-600'}`}></div>
+                </button>
+              )}
             </div>
           </div>
         </div>
       )}
+
+      {profileModalUserId && <UserProfileModal userId={profileModalUserId} onClose={() => setProfileModalUserId(null)} />}
     </div>
   );
 };

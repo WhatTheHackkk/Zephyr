@@ -10,6 +10,9 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['pwa-192x192.png', 'pwa-512x512.png'],
+      workbox: {
+        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024 // 10MB
+      },
       manifest: {
         name: 'Zephyr Hub',
         short_name: 'Zephyr',
