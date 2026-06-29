@@ -24,12 +24,16 @@ const RightSidebar = () => {
   const renderUser = (user: User) => (
     <div key={user.uid} className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-lg cursor-pointer transition-colors group">
       <div className="relative shrink-0">
-        <img src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`} alt={user.username} className="w-8 h-8 rounded-full object-cover border border-white/10" />
-        <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#121218] ${
-          user.status === 'online' ? 'bg-green-500' :
-          user.status === 'idle' ? 'bg-yellow-500' :
-          user.status === 'dnd' ? 'bg-red-500' : 'bg-gray-500'
-        }`}></div>
+        <img 
+          src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`} 
+          alt={user.username} 
+          className={`w-8 h-8 rounded-full object-cover border-2 transition-colors ${
+            user.status === 'online' ? 'border-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' :
+            user.status === 'idle' ? 'border-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.6)]' :
+            user.status === 'dnd' ? 'border-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 
+            'border-gray-500 shadow-[0_0_8px_rgba(107,114,128,0.6)]'
+          }`} 
+        />
       </div>
       <div className="flex-1 overflow-hidden">
         <div className="font-medium text-sm truncate text-white/90 group-hover:text-white">{user.displayName || user.username}</div>

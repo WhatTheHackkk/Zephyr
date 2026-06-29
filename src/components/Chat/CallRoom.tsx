@@ -48,10 +48,17 @@ const CallRoom = () => {
           interfaceConfigOverwrite={{
             DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
             SHOW_CHROME_EXTENSION_BANNER: false,
+            SHOW_JITSI_WATERMARK: false,
+            SHOW_WATERMARK_FOR_GUESTS: false,
+            SHOW_BRAND_WATERMARK: false,
+            HIDE_INVITE_MORE_HEADER: true,
+            DEFAULT_LOGO_URL: '',
+            DEFAULT_WELCOME_PAGE_LOGO_URL: '',
           }}
           userInfo={{
             displayName: currentUser.displayName || currentUser.username,
             email: currentUser.email || '',
+            avatarURL: currentUser.avatar || '',
           }}
           onApiReady={() => {
             setIsLoading(false);

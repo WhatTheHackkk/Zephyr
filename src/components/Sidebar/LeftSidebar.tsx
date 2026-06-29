@@ -71,12 +71,16 @@ const LeftSidebar = () => {
           className="flex items-center gap-3 cursor-pointer hover:bg-white/5 p-2 -ml-2 rounded-lg transition-colors flex-1 overflow-hidden"
         >
           <div className="relative shrink-0">
-            <img src={currentUser?.avatar} alt="Avatar" className="w-9 h-9 rounded-full object-cover border border-white/20" />
-            <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#121218] ${
-              currentUser?.status === 'online' ? 'bg-green-500' :
-              currentUser?.status === 'idle' ? 'bg-yellow-500' :
-              currentUser?.status === 'dnd' ? 'bg-red-500' : 'bg-gray-500'
-            }`}></div>
+            <img 
+              src={currentUser?.avatar} 
+              alt="Avatar" 
+              className={`w-9 h-9 rounded-full object-cover border-2 transition-colors ${
+                currentUser?.status === 'online' ? 'border-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' :
+                currentUser?.status === 'idle' ? 'border-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.6)]' :
+                currentUser?.status === 'dnd' ? 'border-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 
+                'border-gray-500 shadow-[0_0_8px_rgba(107,114,128,0.6)]'
+              }`} 
+            />
           </div>
           <div className="flex-1 overflow-hidden">
             <div className="font-bold text-[13px] truncate">{currentUser?.displayName}</div>

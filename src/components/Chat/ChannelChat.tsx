@@ -3,7 +3,7 @@ import { useAppContext } from '../../context/AppContext';
 import { db } from '../../lib/firebase';
 import { collection, addDoc, query, orderBy, onSnapshot, where, serverTimestamp, doc, setDoc } from 'firebase/firestore';
 import type { ChatMessage } from '../../types';
-import { Send, Hash, MoreVertical, ChevronLeft, Plus, FileText } from 'lucide-react';
+import { Send, Hash, MoreVertical, ChevronLeft, Plus, FileText, Mic, Camera, X } from 'lucide-react';
 
 const ChannelChat = () => {
   const { currentUser, activeChannel, setMobileView } = useAppContext();
@@ -14,6 +14,13 @@ const ChannelChat = () => {
   const [attachment, setAttachment] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const [isRecordingAudio, setIsRecordingAudio] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -155,6 +162,83 @@ const ChannelChat = () => {
     }
   };
 
+  const startAudioRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const file = new File([audioBlob], `audio_${Date.now()}.webm`, { type: 'audio/webm' });
+        setAttachment(file);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecordingAudio(true);
+    } catch (err) {
+      console.error("Error accessing microphone:", err);
+      alert("Microphone access denied or not available.");
+    }
+  };
+
+  const stopAudioRecording = () => {
+    if (mediaRecorderRef.current && isRecordingAudio) {
+      mediaRecorderRef.current.stop();
+      setIsRecordingAudio(false);
+    }
+  };
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      streamRef.current = stream;
+      setShowCamera(true);
+      // Timeout needed for the modal to render and videoRef to become available
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      }, 100);
+    } catch (err) {
+      console.error("Error accessing camera:", err);
+      alert("Camera access denied or not available.");
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    setShowCamera(false);
+  };
+
+  const takePhoto = () => {
+    if (videoRef.current) {
+      const canvas = document.createElement('canvas');
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
+            setAttachment(file);
+            stopCamera();
+          }
+        }, 'image/jpeg');
+      }
+    }
+  };
+
   const renderAttachment = (url: string) => {
     if (!url) return null;
     const isVideo = url.includes('.mp4') || url.includes('.webm') || url.includes('video');
@@ -255,19 +339,80 @@ const ChannelChat = () => {
               onChange={handleTyping}
               onPaste={handlePaste}
               placeholder={`Message #${activeChannel}`}
-              className="liquid-input w-full pr-12 text-sm h-10"
-              disabled={isUploading}
+              className="liquid-input w-full pr-[130px] text-sm h-10"
+              disabled={isUploading || isRecordingAudio}
             />
-            <button 
-              type="submit" 
-              disabled={(!newMessage.trim() && !attachment) || isUploading} 
-              className="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center hover:bg-cyan-500/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Send size={14} className="ml-0.5" />
-            </button>
+            
+            <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              {isRecordingAudio ? (
+                <button
+                  type="button"
+                  onClick={stopAudioRecording}
+                  className="w-8 h-8 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center hover:bg-red-500/40 transition-colors animate-pulse"
+                >
+                  <div className="w-2.5 h-2.5 rounded-sm bg-red-400"></div>
+                </button>
+              ) : (
+                <>
+                  <button 
+                    type="button" 
+                    onClick={startAudioRecording}
+                    className="w-8 h-8 rounded-full bg-white/5 text-white/70 flex items-center justify-center hover:bg-white/10 hover:text-white transition-colors"
+                  >
+                    <Mic size={16} />
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={startCamera}
+                    className="w-8 h-8 rounded-full bg-white/5 text-white/70 flex items-center justify-center hover:bg-white/10 hover:text-white transition-colors"
+                  >
+                    <Camera size={16} />
+                  </button>
+                </>
+              )}
+              
+              <button 
+                type="submit" 
+                disabled={(!newMessage.trim() && !attachment) || isUploading || isRecordingAudio} 
+                className="w-8 h-8 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center hover:bg-cyan-500/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ml-1"
+              >
+                <Send size={14} className="ml-0.5" />
+              </button>
+            </div>
           </div>
         </form>
       </div>
+      
+      {/* Camera Modal */}
+      {showCamera && (
+        <div className="absolute inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4">
+          <div className="relative bg-[#121218] rounded-xl border border-white/10 overflow-hidden shadow-2xl max-w-2xl w-full">
+            <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/40">
+              <h3 className="font-bold text-white">Camera</h3>
+              <button onClick={stopCamera} className="text-white/40 hover:text-white transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="relative bg-black aspect-video flex items-center justify-center">
+              <video 
+                ref={videoRef} 
+                autoPlay 
+                playsInline 
+                muted 
+                className="w-full h-full object-contain"
+              />
+            </div>
+            <div className="p-4 bg-black/40 flex justify-center border-t border-white/10">
+              <button 
+                onClick={takePhoto}
+                className="w-14 h-14 rounded-full border-4 border-white/20 bg-white/10 hover:bg-white hover:border-white transition-all flex items-center justify-center"
+              >
+                <div className="w-10 h-10 rounded-full bg-transparent hover:bg-white/20 transition-all"></div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

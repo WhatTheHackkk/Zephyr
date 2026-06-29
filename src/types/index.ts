@@ -18,6 +18,7 @@ export interface Post {
   content: string;
   image?: string;
   likes: number;
+  reactions?: Record<string, string[]>;
   comments: Comment[];
   timestamp: any;
 }
