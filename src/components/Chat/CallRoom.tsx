@@ -59,7 +59,7 @@ const CallRoom = () => {
             displayName: currentUser.displayName || currentUser.username,
             email: currentUser.email || '',
             avatarURL: currentUser.avatar || '',
-          }}
+          } as any}
           onApiReady={() => {
             setIsLoading(false);
           }}
