@@ -239,7 +239,19 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ userId, onClose }) 
                 <Ban size={16} /> {isBlocked ? 'Unblock User' : 'Block User'}
               </button>
               {currentUser.isAdmin && (
-                <button className="w-full mt-2 font-medium py-2 rounded-lg bg-orange-500/20 text-orange-400 hover:bg-orange-500 hover:text-white transition-colors flex items-center justify-center gap-2 border border-orange-500/30">
+                <button 
+                  onClick={async () => {
+                    if (window.confirm("Are you sure you want to kick/ban this user? This will delete their account data.")) {
+                      try {
+                        await deleteDoc(doc(db, 'users', userId));
+                        onClose();
+                      } catch (err) {
+                        console.error(err);
+                      }
+                    }
+                  }}
+                  className="w-full mt-2 font-medium py-2 rounded-lg bg-orange-500/20 text-orange-400 hover:bg-orange-500 hover:text-white transition-colors flex items-center justify-center gap-2 border border-orange-500/30"
+                >
                   Kick/Ban User
                 </button>
               )}
