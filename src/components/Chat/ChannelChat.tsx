@@ -10,7 +10,7 @@ import { GifPicker } from './GifPicker';
 import UserProfileModal from '../Modals/UserProfileModal';
 
 const ChannelChat = () => {
-  const { currentUser, activeChannel, setActiveChannel, setMobileView, allUsers, leftSidebarOpen, setLeftSidebarOpen } = useAppContext();
+  const { currentUser, activeChannel, setActiveChannel, setMobileView, allUsers, leftSidebarOpen, setLeftSidebarOpen, setContextMenu } = useAppContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isDragging, setIsDragging] = useState(false);
@@ -619,7 +619,44 @@ const ChannelChat = () => {
           }
 
           return (
-            <div key={msg.id} className={`flex gap-4 hover:bg-white/5 p-2 -mx-2 rounded-lg transition-colors group animate-in slide-in-from-bottom-2 relative ${isDMMsg ? 'flex-row-reverse text-right' : ''}`} onMouseLeave={() => setShowOptionsFor(null)}>
+            <div 
+              key={msg.id} 
+              className={`flex gap-4 hover:bg-white/5 p-2 -mx-2 rounded-lg transition-colors group animate-in slide-in-from-bottom-2 relative ${isDMMsg ? 'flex-row-reverse text-right' : ''}`} 
+              onMouseLeave={() => setShowOptionsFor(null)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setContextMenu({
+                  x: e.clientX,
+                  y: e.clientY,
+                  type: 'message',
+                  data: {
+                    message: msg,
+                    onAction: (action: string, message: any) => {
+                      if (action === 'delete') {
+                        deleteDoc(doc(db, 'messages', message.id));
+                      } else if (action === 'edit') {
+                        setEditingMessageId(message.id);
+                        setEditMessageContent(message.content);
+                      } else if (action === 'copy_text') {
+                        navigator.clipboard.writeText(message.content);
+                      } else if (action === 'reply') {
+                        setReplyingTo(message);
+                      } else if (action === 'react_thumbsup') {
+                        handleReaction(message.id, '👍', message.reactions);
+                      } else if (action === 'react_heart') {
+                        handleReaction(message.id, '❤️', message.reactions);
+                      } else if (action === 'react_joy') {
+                        handleReaction(message.id, '😂', message.reactions);
+                      } else if (action === 'react_more') {
+                        setShowEmojiPickerForMessage(message.id);
+                      }
+                      // Others like report, forward, pin, etc. can be added later
+                    }
+                  }
+                });
+              }}
+            >
               
                 <div className={`absolute top-2 z-10 opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity ${isDMMsg ? 'left-2' : 'right-2'}`}>
                   <button onClick={() => setReplyingTo(msg)} className="text-white/40 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10" title="Reply">

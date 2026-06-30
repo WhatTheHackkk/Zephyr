@@ -24,6 +24,8 @@ interface AppContextType {
   channelMeta: Record<string, number>;
   theme: string;
   setTheme: (theme: string) => void;
+  contextMenu: { x: number, y: number, type: 'message' | 'user' | 'channel' | 'generic' | null, data?: any } | null;
+  setContextMenu: React.Dispatch<React.SetStateAction<{ x: number, y: number, type: 'message' | 'user' | 'channel' | 'generic' | null, data?: any } | null>>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -41,6 +43,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [lastRead, setLastRead] = useState<Record<string, number>>(() => JSON.parse(localStorage.getItem('zephyr_lastRead') || '{}'));
   const [channelMeta, setChannelMeta] = useState<Record<string, number>>({});
   const [theme, setThemeState] = useState(() => localStorage.getItem('zephyr_theme') || 'cyan');
+  
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, type: 'message' | 'user' | 'channel' | 'generic' | null, data?: any } | null>(null);
 
   const setTheme = (newTheme: string) => {
     setThemeState(newTheme);
@@ -103,7 +107,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       leftSidebarOpen, setLeftSidebarOpen,
       activeDMs, setActiveDMs,
       lastRead, channelMeta,
-      theme, setTheme
+      theme, setTheme,
+      contextMenu, setContextMenu
     }}>
       {children}
     </AppContext.Provider>

@@ -7,9 +7,10 @@ import type { User } from './types';
 import AuthScreen from './components/Auth/AuthScreen';
 import Layout from './components/Layout';
 import { OnboardingModal } from './components/Modals/OnboardingModal';
+import ContextMenu from './components/Modals/ContextMenu';
 
 function App() {
-  const { currentUser, setCurrentUser, setAllUsers } = useAppContext();
+  const { currentUser, setCurrentUser, setAllUsers, contextMenu, setContextMenu } = useAppContext();
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   // Listen to all users
@@ -24,6 +25,23 @@ function App() {
     });
     return () => unsubscribe();
   }, [setAllUsers]);
+
+  // Global context menu handler for "generic" clicks
+  useEffect(() => {
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      // If we didn't click inside a specific element that stops propagation, show generic menu
+      if (!contextMenu) {
+        setContextMenu({
+          x: e.clientX,
+          y: e.clientY,
+          type: 'generic'
+        });
+      }
+    };
+    window.addEventListener('contextmenu', handleContextMenu);
+    return () => window.removeEventListener('contextmenu', handleContextMenu);
+  }, [contextMenu, setContextMenu]);
 
   useEffect(() => {
     let userUnsub: () => void;
@@ -93,6 +111,7 @@ function App() {
         <>
           <Layout />
           {currentUser && !currentUser.profileCompleted && <OnboardingModal />}
+          <ContextMenu />
         </>
       )}
     </div>
