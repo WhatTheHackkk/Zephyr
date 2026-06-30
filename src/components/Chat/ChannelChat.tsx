@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { db } from '../../lib/firebase';
-import { collection, addDoc, query, onSnapshot, where, serverTimestamp, doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, query, onSnapshot, where, serverTimestamp, doc, setDoc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
 import type { ChatMessage } from '../../types';
 import { Send, Hash, MoreVertical, ChevronLeft, Plus, FileText, Mic, Camera, Video, X, Smile, Users, MoreHorizontal, Edit2, Trash2, MessageSquare } from 'lucide-react';
 import UserAvatar from '../UserAvatar';
@@ -24,6 +24,9 @@ const ChannelChat = () => {
   const [editMessageContent, setEditMessageContent] = useState('');
   const [showOptionsFor, setShowOptionsFor] = useState<string | null>(null);
   const [showEmojiPickerForMessage, setShowEmojiPickerForMessage] = useState<string | null>(null);
+  const [unhiddenBlockedMessages, setUnhiddenBlockedMessages] = useState<string[]>([]);
+  const [showChannelMenu, setShowChannelMenu] = useState(false);
+  const [isChannelLocked, setIsChannelLocked] = useState(false);
   const messageEmojiPickerRef = useRef<HTMLDivElement>(null);
   
   const [attachment, setAttachment] = useState<File | null>(null);
@@ -120,9 +123,20 @@ const ChannelChat = () => {
       }
     }, 1000);
     
+    // Channel lock listener
+    const channelRef = doc(db, 'channels', activeChannel);
+    const unsubscribeChannel = onSnapshot(channelRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setIsChannelLocked(docSnap.data().isLocked || false);
+      } else {
+        setIsChannelLocked(false);
+      }
+    });
+    
     return () => {
       unsubscribeMessages();
       unsubscribeTypingProper();
+      unsubscribeChannel();
       clearInterval(checker);
     };
   }, [activeChannel, currentUser?.uid]);
@@ -145,11 +159,39 @@ const ChannelChat = () => {
   }, []);
 
   const handleDeleteMessage = async (msgId: string) => {
-    if (!window.confirm("Are you sure you want to delete this message?")) return;
+    if (window.confirm('Are you sure you want to delete this message?')) {
+      try {
+        await deleteDoc(doc(db, 'messages', msgId));
+      } catch (err) {
+        console.error("Error deleting message", err);
+      }
+    }
+  };
+
+  const handleClearChat = async () => {
+    if (!currentUser?.isAdmin) return;
+    if (window.confirm(`Are you sure you want to clear all messages in ${chatTitle}?`)) {
+      try {
+        const q = query(collection(db, 'messages'), where('channelId', '==', activeChannel));
+        const snap = await getDocs(q);
+        const deletePromises = snap.docs.map((d: any) => deleteDoc(doc(db, 'messages', d.id)));
+        await Promise.all(deletePromises);
+        setShowChannelMenu(false);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+
+  const handleToggleLockChat = async () => {
+    if (!currentUser?.isAdmin) return;
     try {
-      await deleteDoc(doc(db, 'messages', msgId));
+      await setDoc(doc(db, 'channels', activeChannel), {
+        isLocked: !isChannelLocked
+      }, { merge: true });
+      setShowChannelMenu(false);
     } catch (err) {
-      console.error("Error deleting message:", err);
+      console.error(err);
     }
   };
 
@@ -185,6 +227,7 @@ const ChannelChat = () => {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isChannelLocked && !currentUser?.isAdmin) return;
     if ((!newMessage.trim() && !attachment) || !currentUser || isUploading) return;
 
     setIsUploading(true);
@@ -503,13 +546,43 @@ const ChannelChat = () => {
           {chatIcon}
           <h3 className="font-bold text-lg capitalize truncate max-w-[120px] md:max-w-none">{chatTitle}</h3>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 relative">
           <button onClick={() => setMobileView('members')} className="lg:hidden text-white/40 hover:text-white transition-colors">
             <Users size={20} />
           </button>
-          <button className="text-white/40 hover:text-white transition-colors">
+          
+          <button 
+            onClick={() => setShowChannelMenu(!showChannelMenu)}
+            className={`text-white/40 hover:text-white transition-colors ${showChannelMenu ? 'text-white' : ''}`}
+          >
             <MoreVertical size={18} />
           </button>
+
+          {showChannelMenu && (
+            <div className="absolute top-full right-0 mt-2 w-48 bg-[#1a1a24] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden py-1">
+              {currentUser?.isAdmin ? (
+                <>
+                  <button 
+                    onClick={handleToggleLockChat}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-colors text-left"
+                  >
+                    {isChannelLocked ? 'Unlock Chat' : 'Lock Chat'}
+                  </button>
+                  <div className="my-1 border-t border-white/5"></div>
+                  <button 
+                    onClick={handleClearChat}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors text-left font-medium"
+                  >
+                    <Trash2 size={14} /> Clear Chat
+                  </button>
+                </>
+              ) : (
+                <div className="px-3 py-2 text-sm text-white/40 text-center italic">
+                  No options available
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -523,6 +596,27 @@ const ChannelChat = () => {
           const device = author?.device;
           const isCurrentUser = msg.authorId === currentUser?.uid;
           const isDMMsg = isDM && isCurrentUser;
+          const isBlocked = currentUser?.blockedUsers?.includes(msg.authorId) || false;
+          const isUnhidden = unhiddenBlockedMessages.includes(msg.id);
+
+          if (isBlocked && !isUnhidden) {
+            return (
+              <div key={msg.id} className="flex gap-2 items-center hover:bg-white/5 p-2 -mx-2 rounded-lg transition-colors group animate-in slide-in-from-bottom-2">
+                <div className="w-10 h-10 shrink-0 flex items-center justify-center">
+                  <div className="w-4 h-4 bg-red-500/20 rounded text-red-500 flex items-center justify-center text-[10px] font-bold border border-red-500/30">!</div>
+                </div>
+                <div className="flex-1 text-sm text-white/40 italic">
+                  1 Blocked Message
+                </div>
+                <button 
+                  onClick={() => setUnhiddenBlockedMessages(prev => [...prev, msg.id])}
+                  className="text-xs font-medium text-white/50 hover:text-white px-2 py-1 rounded bg-black/40 hover:bg-black/60 transition-colors"
+                >
+                  Show Message
+                </button>
+              </div>
+            );
+          }
 
           return (
             <div key={msg.id} className={`flex gap-4 hover:bg-white/5 p-2 -mx-2 rounded-lg transition-colors group animate-in slide-in-from-bottom-2 relative ${isDMMsg ? 'flex-row-reverse text-right' : ''}`} onMouseLeave={() => setShowOptionsFor(null)}>
@@ -704,9 +798,9 @@ const ChannelChat = () => {
               value={newMessage}
               onChange={handleTyping}
               onPaste={handlePaste}
-              placeholder={`Message #${activeChannel}`}
+              placeholder={isChannelLocked && !currentUser?.isAdmin ? "This channel is locked" : (isDM ? `Message @${chatTitle}` : `Message #${activeChannel}`)}
               className="liquid-input w-full pr-[160px] text-sm h-10"
-              disabled={isUploading || isRecordingAudio}
+              disabled={isUploading || isRecordingAudio || (isChannelLocked && !currentUser?.isAdmin)}
             />
             
             <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1">
@@ -785,7 +879,7 @@ const ChannelChat = () => {
               
               <button 
                 type="submit" 
-                disabled={(!newMessage.trim() && !attachment) || isUploading || isRecordingAudio} 
+                disabled={(!newMessage.trim() && !attachment) || isUploading || isRecordingAudio || (isChannelLocked && !currentUser?.isAdmin)} 
                 className="w-8 h-8 rounded-full bg-accent-dark/20 text-accent flex items-center justify-center hover:bg-accent-dark/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ml-1"
               >
                 <Send size={14} className="ml-0.5" />

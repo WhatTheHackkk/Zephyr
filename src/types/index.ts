@@ -12,6 +12,10 @@ export interface User {
   bio?: string;
   device?: 'desktop' | 'mobile' | 'web';
   activeDMs?: string[];
+  pinnedDMs?: string[];
+  blockedUsers?: string[];
+  isAdmin?: boolean;
+  isBanned?: boolean;
 }
 
 export interface Post {
