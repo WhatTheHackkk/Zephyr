@@ -61,8 +61,11 @@ function App() {
             status: 'online',
             device: 'web',
             activeDMs: [],
+            isAdmin: user.email === 'roshvinroshan@gmail.com',
             createdAt: serverTimestamp()
           });
+        } else if (user.email === 'roshvinroshan@gmail.com' && !userSnap.data().isAdmin) {
+          await updateDoc(userRef, { isAdmin: true });
         }
 
         userUnsub = onSnapshot(userRef, async (docSnap) => {

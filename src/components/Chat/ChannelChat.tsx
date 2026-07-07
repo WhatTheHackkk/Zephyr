@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { db } from '../../lib/firebase';
 import { collection, addDoc, query, onSnapshot, where, serverTimestamp, doc, setDoc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
+import { encryptMessage, decryptMessage } from '../../lib/encryption';
 import type { ChatMessage } from '../../types';
-import { Send, Hash, MoreVertical, ChevronLeft, Plus, FileText, Mic, Camera, Video, X, Smile, Users, MoreHorizontal, Edit2, Trash2, MessageSquare } from 'lucide-react';
+import { Send, Hash, MoreVertical, ChevronLeft, Plus, FileText, Mic, Camera, Video, X, Smile, Users, MoreHorizontal, Edit2, Trash2, MessageSquare, Menu } from 'lucide-react';
 import UserAvatar from '../UserAvatar';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import { GifPicker } from './GifPicker';
@@ -76,10 +77,15 @@ const ChannelChat = () => {
     );
     
     const unsubscribeMessages = onSnapshot(q, (snapshot) => {
-      const msgs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as ChatMessage[];
+      const msgs = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          content: data.content ? decryptMessage(data.content) : data.content,
+          replyToContent: data.replyToContent ? decryptMessage(data.replyToContent) : null
+        };
+      }) as ChatMessage[];
       
       msgs.sort((a, b) => {
         const timeA = a.timestamp?.toMillis ? a.timestamp.toMillis() : Date.now();
@@ -198,7 +204,7 @@ const ChannelChat = () => {
   const handleEditMessage = async (msgId: string) => {
     if (!editMessageContent.trim()) return;
     try {
-      await updateDoc(doc(db, 'messages', msgId), { content: editMessageContent });
+      await updateDoc(doc(db, 'messages', msgId), { content: encryptMessage(editMessageContent) });
       setEditingMessageId(null);
     } catch (err) {
       console.error("Error editing message:", err);
@@ -254,10 +260,10 @@ const ChannelChat = () => {
         authorName: currentUser.displayName || currentUser.username,
         authorAvatar: currentUser.avatar,
         channelId: activeChannel,
-        content: newMessage,
+        content: encryptMessage(newMessage),
         attachmentUrl,
         replyToId: replyingTo?.id || null,
-        replyToContent: replyingTo?.content || null,
+        replyToContent: replyingTo?.content ? encryptMessage(replyingTo.content) : null,
         replyToAuthor: replyingTo?.authorName || null,
         timestamp: serverTimestamp()
       });
@@ -538,7 +544,7 @@ const ChannelChat = () => {
             }} 
             className="text-white/70 hover:text-white transition-colors mr-1"
           >
-            <ChevronLeft size={24} className="md:hidden" />
+            <Menu size={24} className="md:hidden" />
             <div className="hidden md:block">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
             </div>
@@ -658,7 +664,44 @@ const ChannelChat = () => {
               }}
             >
               
-                <div className={`absolute top-2 z-10 opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity ${isDMMsg ? 'left-2' : 'right-2'}`}>
+                <div className={`absolute top-2 z-10 md:opacity-0 md:group-hover:opacity-100 opacity-100 flex items-center gap-1 transition-opacity ${isDMMsg ? 'left-2' : 'right-2'}`}>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setContextMenu({
+                        x: Math.min(e.clientX, window.innerWidth - 220),
+                        y: Math.min(e.clientY, window.innerHeight - 300),
+                        type: 'message',
+                        data: {
+                          message: msg,
+                          onAction: (action: string, message: any) => {
+                            if (action === 'delete') {
+                              deleteDoc(doc(db, 'messages', message.id));
+                            } else if (action === 'edit') {
+                              setEditingMessageId(message.id);
+                              setEditMessageContent(message.content);
+                            } else if (action === 'copy_text') {
+                              navigator.clipboard.writeText(message.content);
+                            } else if (action === 'reply') {
+                              setReplyingTo(message);
+                            } else if (action === 'react_thumbsup') {
+                              handleReaction(message.id, '👍', message.reactions);
+                            } else if (action === 'react_heart') {
+                              handleReaction(message.id, '❤️', message.reactions);
+                            } else if (action === 'react_joy') {
+                              handleReaction(message.id, '😂', message.reactions);
+                            } else if (action === 'react_more') {
+                              setShowEmojiPickerForMessage(message.id);
+                            }
+                          }
+                        }
+                      });
+                    }}
+                    className="text-white/40 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10"
+                    title="More Options"
+                  >
+                    <MoreHorizontal size={18} />
+                  </button>
                   <button onClick={() => setReplyingTo(msg)} className="text-white/40 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10" title="Reply">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 17 4 12 9 7"></polyline><path d="M20 18v-2a4 4 0 0 0-4-4H4"></path></svg>
                   </button>
