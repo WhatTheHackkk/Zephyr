@@ -58,7 +58,7 @@ const RightSidebar = () => {
       {user.uid !== currentUser?.uid && (
         <button 
           onClick={() => startDM(user.uid)}
-          className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-accent hover:bg-accent-dark hover:text-white transition-colors opacity-0 group-hover:opacity-100 shrink-0"
+          className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-accent hover:bg-accent-dark hover:text-white transition-colors opacity-100 lg:opacity-0 lg:group-hover:opacity-100 shrink-0"
           title="Message"
         >
           <MessageSquare size={14} />

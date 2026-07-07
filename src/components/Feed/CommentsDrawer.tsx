@@ -131,7 +131,7 @@ const CommentsDrawer: React.FC<CommentsDrawerProps> = ({ postId, onClose }) => {
               </div>
 
               {comment.authorId === currentUser?.uid && (
-                <div className="absolute top-1 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute top-1 right-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                   <button onClick={() => setShowOptionsFor(showOptionsFor === comment.id ? null : comment.id)} className="text-white/40 hover:text-white p-1 rounded hover:bg-white/10">
                     <MoreHorizontal size={14} />
                   </button>

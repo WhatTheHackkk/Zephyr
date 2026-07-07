@@ -149,7 +149,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
           {/* Banner */}
           <div className="relative h-32 bg-black/30 group z-10">
             {renderMedia(banner, "w-full h-full")}
-            <label className={`absolute top-2 right-2 p-2 bg-black/60 rounded-full cursor-pointer hover:bg-black/80 transition-all backdrop-blur-sm z-20 ${isUploading === 'banner' ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+            <label className={`absolute top-2 right-2 p-2 bg-black/60 rounded-full cursor-pointer hover:bg-black/80 transition-all backdrop-blur-sm z-20 ${isUploading === 'banner' ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100'}`}>
               <input type="file" accept="image/*,video/mp4,video/webm" className="hidden" onChange={(e) => handleFileSelect(e, 'banner')} disabled={isUploading !== null} />
               {isUploading === 'banner' ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <UploadCloud size={20} className="text-white" />}
             </label>
@@ -159,7 +159,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ onClose }) => {
           <div className="absolute left-6 -bottom-12 z-50">
             <div className="relative w-24 h-24 rounded-full border-4 border-[#111116] overflow-hidden bg-black group shadow-lg">
               {renderMedia(avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.uid}`, "w-full h-full")}
-              <label className={`absolute inset-0 bg-black/40 flex items-center justify-center cursor-pointer hover:bg-black/60 transition-all ${isUploading === 'avatar' ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+              <label className={`absolute inset-0 bg-black/40 flex items-center justify-center cursor-pointer hover:bg-black/60 transition-all ${isUploading === 'avatar' ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100'}`}>
                 <input type="file" accept="image/*,video/mp4,video/webm" className="hidden" onChange={(e) => handleFileSelect(e, 'avatar')} disabled={isUploading !== null} />
                 {isUploading === 'avatar' ? <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <UploadCloud size={24} className="text-white shadow-lg drop-shadow-lg" />}
               </label>

@@ -186,7 +186,7 @@ const LeftSidebar = () => {
                     
                     {/* Three Dots Menu Button */}
                     <div 
-                      className={`ml-auto shrink-0 flex items-center justify-center w-6 h-6 rounded hover:bg-white/10 transition-colors ${showDMOptionsFor === dmUserId ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                      className={`ml-auto shrink-0 flex items-center justify-center w-6 h-6 rounded hover:bg-white/10 transition-colors ${showDMOptionsFor === dmUserId ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100'}`}
                       onClick={(e) => {
                         e.stopPropagation();
                         setShowDMOptionsFor(showDMOptionsFor === dmUserId ? null : dmUserId);

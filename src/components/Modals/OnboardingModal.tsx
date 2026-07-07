@@ -85,7 +85,7 @@ export const OnboardingModal = () => {
               ) : (
                 <span className="text-4xl font-bold text-white/30 uppercase">{currentUser.displayName?.charAt(0) || currentUser.username?.charAt(0) || '?'}</span>
               )}
-              <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                 {isUploading ? <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <span className="text-sm font-medium text-white">Upload</span>}
               </div>
               <input type="file" className="hidden" accept="image/*" onChange={handleFileSelect} disabled={isUploading} />
